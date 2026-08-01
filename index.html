@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>@slurrps/PrismBoy — Game Boy Color Emulator</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>@slurrps/PrismBoy</h1>
+      <p>Game Boy / Game Boy Color emulator demo</p>
+    </header>
+
+    <section class="screen-wrap" id="screen-wrap">
+      <canvas id="screen" width="160" height="144"></canvas>
+      <div id="fps">FPS: —</div>
+      <div id="gamepad-status" class="gamepad-status"></div>
+    </section>
+
+    <section class="controls">
+      <label class="file">
+        Load ROM
+        <input type="file" id="rom" accept=".gb,.gbc,.bin" />
+      </label>
+      <button type="button" id="reload">Reload</button>
+      <button type="button" id="quit">Quit</button>
+      <button type="button" id="mute">Mute</button>
+      <label>Vol <input type="range" id="volume" min="0" max="1" step="0.05" value="0.35" /></label>
+      <label>
+        Scale
+        <select id="scale-mode">
+          <option value="integer" selected>Integer ×3</option>
+          <option value="fit">Fit</option>
+          <option value="stretch">Stretch</option>
+          <option value="fullscreen">Fullscreen</option>
+        </select>
+      </label>
+      <label>
+        ×
+        <input type="number" id="scale-n" min="1" max="8" value="3" />
+      </label>
+    </section>
+
+    <section class="saves">
+      <h2>Battery save (.sav)</h2>
+      <button type="button" id="download-sav">Download .sav</button>
+      <label class="file">Upload .sav <input type="file" id="upload-sav" accept=".sav,.bin" /></label>
+      <h2>Savestates</h2>
+      <div class="slots">
+        <button type="button" data-slot="1">Save 1</button>
+        <button type="button" data-slot="1" data-load>Load 1</button>
+        <button type="button" data-slot="2">Save 2</button>
+        <button type="button" data-slot="2" data-load>Load 2</button>
+        <button type="button" data-slot="3">Save 3</button>
+        <button type="button" data-slot="3" data-load>Load 3</button>
+      </div>
+      <button type="button" id="download-state">Download .state</button>
+      <label class="file">Upload .state <input type="file" id="upload-state" accept=".state,.bin" /></label>
+    </section>
+
+    <section class="pad" id="pad">
+      <div class="dpad">
+        <button type="button" data-btn="Up">▲</button>
+        <div class="mid">
+          <button type="button" data-btn="Left">◀</button>
+          <button type="button" data-btn="Right">▶</button>
+        </div>
+        <button type="button" data-btn="Down">▼</button>
+      </div>
+      <div class="actions">
+        <button type="button" data-btn="B">B</button>
+        <button type="button" data-btn="A">A</button>
+      </div>
+      <div class="system">
+        <button type="button" data-btn="Select">Select</button>
+        <button type="button" data-btn="Start">Start</button>
+      </div>
+    </section>
+
+    <p class="hint">Keyboard: Arrows · Z=A · X=B · Enter=Start · Shift=Select · Gamepad supported</p>
+  </main>
+  <script type="module" src="/src/example.ts"></script>
+</body>
+</html>

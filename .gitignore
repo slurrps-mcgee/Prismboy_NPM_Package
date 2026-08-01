@@ -1,0 +1,9 @@
+dist
+node_modules
+*.log
+.vscode/
+coverage/
+tests/fixtures/roms/
+# Personal deep-dive notes (not for publish/repo)
+NOTES_PRIVATE.md
+PRIVATE_APP_REFERENCE.md
