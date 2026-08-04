@@ -50,6 +50,7 @@ export class CPU {
     return executeOpcode(this, opcode);
   }
 
+  /** Handle the interrupts of the gameboy */
   private handleInterrupts(): number {
     const pending = this.bus.getIf() & this.bus.ie & 0x1f;
     if (!pending) return 0;
@@ -71,6 +72,9 @@ export class CPU {
     return 0;
   }
 
+  /*CPU Methods */
+
+  
   fetch8(): number {
     const v = this.bus.read(this.registers.pc);
     this.registers.pc = (this.registers.pc + 1) & 0xffff;

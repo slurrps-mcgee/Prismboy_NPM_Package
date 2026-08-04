@@ -1,3 +1,15 @@
+/**
+ * Virtual Pad
+ * 
+ * This file is responsible for attaching the virtual pad on-screen buttons to the document.
+ * It is used to map the virtual pad on-screen buttons to the joypad buttons.
+ * It is also used to trigger the joypad buttons when the virtual pad on-screen buttons are pressed.
+ * It is also used to release the joypad buttons when the virtual pad on-screen buttons are released.
+ * It is also used to lost the joypad buttons when the virtual pad on-screen buttons are lost.
+ * It is also used to click the joypad buttons when the virtual pad on-screen buttons are clicked.
+ * It is also used to clean up the virtual pad on-screen buttons when the gameboy is detached.
+ */
+
 import { Button } from "@/constants/joypad.constants";
 
 /** HTML `data-btn` attribute → Button (for custom on-screen pads). */

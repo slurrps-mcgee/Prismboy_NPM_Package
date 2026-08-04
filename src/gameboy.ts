@@ -25,14 +25,16 @@ export type { ScaleMode, ScreenOptions, GamepadButtonMap };
 export { DMG_BOOT, CGB_BOOT } from "@/boot";
 
 export class GameBoy {
-  readonly bus = new Bus();
-  readonly cpu = new CPU(this.bus);
-  readonly ppu = new Ppu(this.bus);
-  readonly timer = new Timer(this.bus);
-  readonly joypad = new Joypad(this.bus);
-  readonly apu = new Apu();
-  readonly screen = new Screen();
+  // Setup the gameboy
+  readonly bus = new Bus(); // the bus is the main bus of the gameboy
+  readonly cpu = new CPU(this.bus); // the cpu is the central processing unit of the gameboy
+  readonly ppu = new Ppu(this.bus); // the ppu is the picture processing unit of the gameboy
+  readonly timer = new Timer(this.bus); // the timer is the timer of the gameboy
+  readonly joypad = new Joypad(this.bus); // the joypad is the joypad of the gameboy
+  readonly apu = new Apu(); // the apu is the audio processing unit of the gameboy
+  readonly screen = new Screen(); // the screen is the screen of the gameboy
 
+  // Setup the gameboy variables
   private running = false;
   private rafId = 0;
   private cyclesThisFrame = 0;
@@ -57,16 +59,19 @@ export class GameBoy {
   private stateSlots: (Uint8Array | null)[] = [];
   private fpsEl: HTMLElement | null = null;
 
+  // Initialize the gameboy
   constructor(options?: { useBootRom?: boolean; autoSave?: boolean; autoSavePrefix?: string }) {
+    // Initialize the gameboy options
     if (options?.useBootRom !== undefined) this.useBootRom = options.useBootRom;
     if (options?.autoSave) this.autoSave = true;
     if (options?.autoSavePrefix) this.autoSavePrefix = options.autoSavePrefix;
-    this.bus.joypad = this.joypad;
-    this.bus.timer = this.timer;
-    this.bus.ppu = this.ppu;
-    this.bus.apu = this.apu;
-    this.bus.onSramWrite = () => this.scheduleSaveFlush();
-    if (this.autoSave) this.wireAutoSave();
+    // Initialize the gameboy bus
+    this.bus.joypad = this.joypad; // the joypad is the joypad of the gameboy
+    this.bus.timer = this.timer; // the timer is the timer of the gameboy
+    this.bus.ppu = this.ppu; // the ppu is the picture processing unit of the gameboy
+    this.bus.apu = this.apu; // the apu is the audio processing unit of the gameboy
+    this.bus.onSramWrite = () => this.scheduleSaveFlush(); // schedule the save flush
+    if (this.autoSave) this.wireAutoSave(); // wire the auto save
   }
 
   /** Prefer SameBoy open-source boot ROMs (default). Pass false to skip to cart entry. */
@@ -102,18 +107,22 @@ export class GameBoy {
     this.fpsEl = el;
   }
 
+  // Set the scale of the gameboy
   setScale(n: number): void {
     this.screen.setScale(n);
   }
 
+  // Set the scale mode of the gameboy
   setScaleMode(mode: ScaleMode): void {
     this.screen.setScaleMode(mode);
   }
 
+  // Get the scale mode of the gameboy
   getScaleMode(): ScaleMode {
     return this.screen.getScaleMode();
   }
 
+  // Toggle the fullscreen of the gameboy
   toggleFullscreen(): Promise<void> {
     return this.screen.toggleFullscreen();
   }
@@ -123,11 +132,13 @@ export class GameBoy {
     this.apu.enableSound();
   }
 
+  // Mute the gameboy
   mute(): void {
     this.muted = true;
     this.apu.mute();
   }
 
+  // Unmute the gameboy
   unMute(): void {
     this.muted = false;
     this.apu.unMute();
@@ -140,14 +151,17 @@ export class GameBoy {
     return this.muted;
   }
 
+  // Get the muted state of the gameboy
   isMuted(): boolean {
     return this.muted;
   }
 
+  // Set the volume of the gameboy
   setVolume(v: number): void {
     this.apu.setVolume(v);
   }
 
+  // Get the volume of the gameboy
   getVolume(): number {
     return this.apu.getVolume();
   }
@@ -159,31 +173,38 @@ export class GameBoy {
     this.wireAutoSave();
   }
 
+  // Disable the auto save of the gameboy
   disableAutoSave(): void {
     this.autoSave = false;
     if (this.saveCb === this.autoSaveHandler) this.saveCb = null;
   }
 
+  // Get the rom id of the gameboy
   getRomId(): string {
     return this.romId;
   }
 
+  // Set the rom id of the gameboy
   setRomId(id: string): void {
     this.romId = id || "rom";
   }
 
+  // Get the save storage key of the gameboy
   private saveStorageKey(): string {
     return `${this.autoSavePrefix}${this.romId}`;
   }
 
+  // Get the state storage key of the gameboy
   private stateStorageKey(slot: number): string {
     return `gbc-state:${this.romId}:${slot}`;
   }
 
+  // The auto save handler of the gameboy
   private autoSaveHandler = (data: Uint8Array): void => {
     persistLocalBase64(this.saveStorageKey(), data);
   };
 
+  // Wire the auto save of the gameboy
   private wireAutoSave(): void {
     this.saveCb = this.autoSaveHandler;
   }
@@ -216,6 +237,7 @@ export class GameBoy {
     this.run();
   }
 
+  // Load the rom of the gameboy
   loadRom(rom: Uint8Array): void {
     this.romBytes = rom.slice();
     const cart = createCartridge(rom);
@@ -268,10 +290,12 @@ export class GameBoy {
     if (this.fpsEl) this.fpsEl.textContent = "FPS: —";
   }
 
+  // Check if the gameboy has a rom
   hasRom(): boolean {
     return this.romBytes !== null;
   }
 
+  // Reset the gameboy
   reset(): void {
     const boot = this.useBootRom && !!this.bus.bootRom;
     this.bus.reset(this.cgbMode, boot);
@@ -284,6 +308,7 @@ export class GameBoy {
     this.lcdPhase = 0;
   }
 
+  // Advance the peripherals of the gameboy
   private advancePeripherals(cpuCycles: number): boolean {
     this.timer.tick(cpuCycles);
     let lcdDots = cpuCycles;
@@ -296,12 +321,14 @@ export class GameBoy {
     return this.ppu.tick(lcdDots);
   }
 
+  // Present the frame of the gameboy
   private presentFrame(): void {
     if (this.screenAttached) this.screen.present(this.ppu.frameBuffer);
     if (this.fpsEl) this.fpsEl.textContent = `FPS: ${this.fps}`;
     this.frameCb?.(this.ppu.frameBuffer, this.fps);
   }
 
+  // Run the gameboy main loop
   run(): void {
     if (this.running) return;
     if (!this.romBytes) return;
@@ -339,12 +366,14 @@ export class GameBoy {
     this.rafId = requestAnimationFrame(loop);
   }
 
+  // Pause the gameboy
   pause(): void {
     this.running = false;
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.flushSaveSync();
   }
 
+  // Step the gameboy
   step(): number {
     const c = this.cpu.step();
     const frameDone = this.advancePeripherals(c);
@@ -352,14 +381,17 @@ export class GameBoy {
     return c;
   }
 
+  // On frame finished of the gameboy
   onFrameFinished(cb: (frame: ImageData, fps: number) => void): void {
     this.frameCb = cb;
   }
 
+  // Check if the gameboy has a battery save
   hasBatterySave(): boolean {
     return this.bus.cartridge?.info.hasBattery === true && (this.bus.cartridge.sram.length > 0 || this.bus.cartridge.info.hasRtc);
   }
 
+  // Get the save of the gameboy
   getSave(): Uint8Array | null {
     const cart = this.bus.cartridge;
     if (!cart || !cart.info.hasBattery) return null;
@@ -369,6 +401,7 @@ export class GameBoy {
     return serializeSave(cart.sram, rtc);
   }
 
+  // Load the save of the gameboy
   loadSave(data: Uint8Array): void {
     const cart = this.bus.cartridge;
     if (!cart) throw new Error("No cartridge loaded");
@@ -386,6 +419,7 @@ export class GameBoy {
     }
   }
 
+  // On save ram updated of the gameboy
   onSaveRamUpdated(cb: (data: Uint8Array) => void): void {
     this.saveCb = cb;
     this.autoSave = false;
@@ -414,6 +448,7 @@ export class GameBoy {
     downloadBytes(filename ?? `${this.romId}.state`, this.createState());
   }
 
+  // Load the state from a file of the gameboy
   async loadStateFromFile(file: File): Promise<void> {
     const data = await readFileBytes(file);
     requestAnimationFrame(() => this.loadState(data));
@@ -427,6 +462,7 @@ export class GameBoy {
     persistLocalBase64(this.stateStorageKey(slot), state);
   }
 
+  // Load the state from a slot of the gameboy
   loadStateSlot(slot: number): boolean {
     let data = this.stateSlots[slot] ?? null;
     if (!data) data = loadLocalBase64(this.stateStorageKey(slot));
@@ -436,6 +472,7 @@ export class GameBoy {
     return true;
   }
 
+  // Schedule the save flush of the gameboy
   private scheduleSaveFlush(): void {
     if (!this.saveCb || !this.hasBatterySave()) return;
     this.saveDirty = true;
@@ -446,6 +483,7 @@ export class GameBoy {
     }, 250);
   }
 
+  // Flush the save asynchronously of the gameboy
   private flushSaveAsync(): void {
     if (!this.saveDirty || !this.saveCb) return;
     this.saveDirty = false;
@@ -456,6 +494,7 @@ export class GameBoy {
     queueMicrotask(() => cb(copy));
   }
 
+  // Flush the save synchronously of the gameboy
   private flushSaveSync(): void {
     if (this.saveFlushTimer !== null) {
       clearTimeout(this.saveFlushTimer);
@@ -467,10 +506,12 @@ export class GameBoy {
     if (data) this.saveCb(data);
   }
 
+  // Create the state of the gameboy
   createState(): Uint8Array {
     return createSavestate(this);
   }
 
+  // Load the state of the gameboy
   loadState(data: Uint8Array): void {
     loadSavestate(this, data);
     this.apu.clearAudioBuffer();

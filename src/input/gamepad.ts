@@ -1,3 +1,15 @@
+/**
+ * Gamepad Button Map
+ * 
+ * This file is responsible for mapping the gamepad buttons to the joypad buttons.
+ * It is used to map the gamepad buttons to the joypad buttons.
+ * It is also used to trigger the joypad buttons when the gamepad buttons are pressed.
+ * It is also used to release the joypad buttons when the gamepad buttons are released.
+ * It is also used to lost the joypad buttons when the gamepad buttons are lost.
+ * It is also used to click the joypad buttons when the gamepad buttons are clicked.
+ * It is also used to clean up the gamepad buttons when the gameboy is detached.
+ */
+
 import { Button } from "@/constants/joypad.constants";
 
 export interface GamepadButtonMap {

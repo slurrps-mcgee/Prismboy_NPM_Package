@@ -11,6 +11,12 @@ const MNEMONICS: Record<number, string> = {
   0xfb: "EI",
 };
 
+/**
+ * Disassemble the opcode of the gameboy
+ * @param opcode - The opcode of the gameboy
+ * @param cb - The cb of the gameboy
+ * @returns The disassembled opcode of the gameboy
+ */
 export function disassemble(opcode: number, cb?: number): string {
   if (opcode === 0xcb && cb !== undefined) return `CB ${cb.toString(16).padStart(2, "0")}`;
   return MNEMONICS[opcode] ?? `DB $${opcode.toString(16).padStart(2, "0")}`;
