@@ -105,6 +105,22 @@ GBC/
 - Types: `Cartridge`, `CartridgeInfo`
 - Boot arrays: `DMG_BOOT`, `CGB_BOOT`
 
+### Publishing to npm
+
+Workflow: [`.github/workflows/npm.yml`](.github/workflows/npm.yml) (`workflow_dispatch`). Auth uses **npm Trusted Publishing (OIDC)** — no `NPM_TOKEN` / OTP.
+
+One-time setup on [npmjs.com package settings](https://www.npmjs.com/package/@slurrps/PrismBoy) → **Trusted Publisher**:
+
+| Field | Value |
+|-------|--------|
+| Provider | GitHub Actions |
+| Organization / user | `slurrps-mcgee` |
+| Repository | `Prismboy_NPM_Package` |
+| Workflow filename | `npm.yml` |
+| Environment | *(empty)* |
+
+Allow **`npm publish`**. Bump `package.json` `version` before re-running the workflow if that version is already on the registry.
+
 ---
 
 ## 4. High-level architecture
