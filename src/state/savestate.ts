@@ -3,6 +3,7 @@ import type { GameBoy } from "../gameboy";
 const MAGIC = new TextEncoder().encode("GBCST");
 const VERSION = 1;
 
+// Concatenate the parts
 function concat(parts: Uint8Array[]): Uint8Array {
   let total = 0;
   for (const p of parts) total += 4 + p.length;
@@ -17,13 +18,14 @@ function concat(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
+// Read the chunk
 function readChunk(data: Uint8Array, offset: number): { chunk: Uint8Array; next: number } {
   const len = new DataView(data.buffer, data.byteOffset + offset).getUint32(0, true);
   const chunk = data.slice(offset + 4, offset + 4 + len);
   return { chunk, next: offset + 4 + len };
 }
 
-/** Create a versioned full-machine savestate blob. */
+// Create a versioned full-machine savestate blob.
 export function createSavestate(gb: GameBoy): Uint8Array {
   const parts = [
     gb.cpu.exportState(),
@@ -42,7 +44,7 @@ export function createSavestate(gb: GameBoy): Uint8Array {
   return out;
 }
 
-/** Load a savestate. ROM must already be loaded. */
+// Load a savestate. ROM must already be loaded.
 export function loadSavestate(gb: GameBoy, data: Uint8Array): void {
   for (let i = 0; i < 5; i++) {
     if (data[i] !== MAGIC[i]) throw new Error("Invalid savestate magic");

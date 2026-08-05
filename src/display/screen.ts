@@ -10,11 +10,9 @@ export interface ScreenOptions {
   container?: HTMLElement | null;
 }
 
-/**
- * Host display helper: keeps the framebuffer at 160×144 and scales the canvas
- * via CSS / layout (integer, fit, stretch, fullscreen).
- */
+/** Canvas presenter: native 160×144 buffer + CSS scale modes. */
 export class Screen {
+  // Properties
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
   private container: HTMLElement | null = null;
@@ -23,6 +21,9 @@ export class Screen {
   private resizeObserver: ResizeObserver | null = null;
   private onFsChange = (): void => this.applyLayout();
 
+  // ── Public ──────────────────────────────────────────────────────────────
+
+  // Attach the screen to the canvas
   attach(canvas: HTMLCanvasElement, options: ScreenOptions = {}): void {
     this.detach();
     this.canvas = canvas;
@@ -47,6 +48,7 @@ export class Screen {
     this.applyLayout();
   }
 
+  // Detach the screen from the canvas
   detach(): void {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
@@ -58,15 +60,18 @@ export class Screen {
     this.container = null;
   }
 
+  // Set the scale of the screen
   setScale(n: number): void {
     this.scale = Math.max(1, Math.floor(n));
     if (this.mode === "integer") this.applyLayout();
   }
 
+  // Get the scale of the screen
   getScale(): number {
     return this.scale;
   }
 
+  // Set the scale mode of the screen
   setScaleMode(mode: ScaleMode): void {
     this.mode = mode;
     if (mode === "fullscreen") {
@@ -77,10 +82,12 @@ export class Screen {
     this.applyLayout();
   }
 
+  // Get the scale mode of the screen
   getScaleMode(): ScaleMode {
     return this.mode;
   }
 
+  // Toggle the fullscreen of the screen
   async toggleFullscreen(): Promise<void> {
     if (typeof document === "undefined") return;
     if (document.fullscreenElement) {
@@ -93,18 +100,21 @@ export class Screen {
     this.applyLayout();
   }
 
-  /** Paint a 160×144 frame buffer onto the attached canvas. */
+  // Paint a 160×144 frame buffer onto the attached canvas.
   present(frame: ImageData): void {
     this.ctx?.putImageData(frame, 0, 0);
   }
 
-  /** Clear the canvas to black. */
+  // Clear the canvas to black.
   clear(): void {
     if (!this.ctx || !this.canvas) return;
     this.ctx.fillStyle = "#000";
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
+  // ── Private ─────────────────────────────────────────────────────────────
+
+  // Request the fullscreen of the screen
   private async requestFullscreen(): Promise<void> {
     const el = this.container ?? this.canvas;
     if (!el?.requestFullscreen) return;
@@ -115,6 +125,7 @@ export class Screen {
     }
   }
 
+  // Apply the layout of the screen
   private applyLayout(): void {
     if (!this.canvas) return;
     const style = this.canvas.style;
@@ -148,10 +159,8 @@ export class Screen {
       return;
     }
 
-    // fit — preserve aspect, prefer integer scale when it fits
     let scale = Math.max(1, Math.floor(Math.min(maxW / SCREEN_WIDTH, maxH / SCREEN_HEIGHT)));
     if (scale < 1) scale = 1;
-    // If integer scale doesn't fill well on phones, allow fractional fit
     const iw = SCREEN_WIDTH * scale;
     const ih = SCREEN_HEIGHT * scale;
     if (iw <= maxW && ih <= maxH && (maxW - iw > SCREEN_WIDTH || maxH - ih > SCREEN_HEIGHT)) {

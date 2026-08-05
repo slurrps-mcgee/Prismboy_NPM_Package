@@ -1,3 +1,4 @@
+// RTC state
 export interface RtcState {
   s: number;
   m: number;
@@ -13,6 +14,7 @@ export interface RtcState {
   lastUnixMs: number;
 }
 
+// Cartridge information
 export interface CartridgeInfo {
   title: string;
   type: number;
@@ -23,6 +25,7 @@ export interface CartridgeInfo {
   hasRtc: boolean;
 }
 
+// Cartridge interface
 export interface Cartridge {
   readonly info: CartridgeInfo;
   readonly rom: Uint8Array;
@@ -37,6 +40,7 @@ export interface Cartridge {
   onSramWrite?: (() => void) | undefined;
 }
 
+// Parse the header of the cartridge
 export function parseHeader(rom: Uint8Array): CartridgeInfo {
   let title = "";
   for (let i = 0x134; i <= 0x143; i++) {
@@ -61,6 +65,7 @@ export function parseHeader(rom: Uint8Array): CartridgeInfo {
   return { title: title.trim(), type, romSize, ramSize, cgbFlag, hasBattery, hasRtc };
 }
 
+// Create an RTC state
 function createRtc(): RtcState {
   return {
     s: 0,
@@ -78,6 +83,7 @@ function createRtc(): RtcState {
   };
 }
 
+// Tick the RTC
 function tickRtc(rtc: RtcState): void {
   if (rtc.dh & 0x40) return; // halt
   const now = Date.now();
@@ -104,13 +110,16 @@ function tickRtc(rtc: RtcState): void {
   }
 }
 
+// MBC base class
 abstract class MbcBase implements Cartridge {
+  // Properties
   readonly info: CartridgeInfo;
   readonly rom: Uint8Array;
   sram: Uint8Array;
   rtc: RtcState | null;
   onSramWrite?: (() => void) | undefined;
 
+  // Constructor
   constructor(rom: Uint8Array, info: CartridgeInfo) {
     this.rom = rom;
     this.info = info;
@@ -118,14 +127,18 @@ abstract class MbcBase implements Cartridge {
     this.rtc = info.hasRtc ? createRtc() : null;
   }
 
+  // ── Public ──────────────────────────────────────────────────────────────
+
+  // Read from the cartridge
   abstract read(addr: number): number;
+
+  // Write to the cartridge
   abstract write(addr: number, value: number): void;
+
+  // Reset the cartridge
   abstract reset(): void;
 
-  protected notifySram(): void {
-    this.onSramWrite?.();
-  }
-
+  // Export the state of the cartridge
   exportState(): Uint8Array {
     const rtcBytes = this.rtc ? 48 : 0;
     const buf = new Uint8Array(8 + this.sram.length + rtcBytes);
@@ -147,6 +160,7 @@ abstract class MbcBase implements Cartridge {
     return buf;
   }
 
+  // Import the state of the cartridge
   importState(data: Uint8Array, offset = 0): number {
     const view = new DataView(data.buffer, data.byteOffset + offset);
     const sramLen = view.getUint32(0, true);
@@ -170,30 +184,48 @@ abstract class MbcBase implements Cartridge {
     }
     return 8 + sramLen + rtcBytes;
   }
+
+  // ── Private ─────────────────────────────────────────────────────────────
+
+  // Notify the cartridge that the SRAM has been written to
+  protected notifySram(): void {
+    this.onSramWrite?.();
+  }
 }
 
+// MBC0 class
 class Mbc0 extends MbcBase {
+  // ── Public ──────────────────────────────────────────────────────────────
+  // Reset the cartridge
+  reset(): void {}
+
+  // Read from the cartridge
   read(addr: number): number {
     if (addr < 0x8000) return this.rom[addr] ?? 0xff;
     if (addr >= 0xa000 && addr < 0xc000 && this.sram.length)
       return this.sram[addr - 0xa000] ?? 0xff;
     return 0xff;
   }
+
+  // Write to the cartridge
   write(addr: number, value: number): void {
     if (addr >= 0xa000 && addr < 0xc000 && this.sram.length) {
       this.sram[addr - 0xa000] = value & 0xff;
       this.notifySram();
     }
   }
-  reset(): void {}
 }
 
+// MBC1 class
 class Mbc1 extends MbcBase {
   private romBank = 1;
   private ramBank = 0;
   private ramEnable = false;
   private mode = 0;
 
+  // ── Public ──────────────────────────────────────────────────────────────
+
+  // Reset the cartridge
   reset(): void {
     this.romBank = 1;
     this.ramBank = 0;
@@ -201,14 +233,7 @@ class Mbc1 extends MbcBase {
     this.mode = 0;
   }
 
-  private effectiveRomBank(): number {
-    let bank = this.romBank & 0x1f;
-    if (this.mode === 0) bank |= (this.ramBank & 3) << 5;
-    if ((bank & 0x1f) === 0) bank |= 1;
-    const max = Math.max(1, this.rom.length / 0x4000);
-    return bank % max;
-  }
-
+  // Read from the cartridge
   read(addr: number): number {
     if (addr < 0x4000) {
       const bank = this.mode === 1 ? (this.ramBank & 3) << 5 : 0;
@@ -228,6 +253,7 @@ class Mbc1 extends MbcBase {
     return 0xff;
   }
 
+  // Write to the cartridge
   write(addr: number, value: number): void {
     if (addr < 0x2000) {
       this.ramEnable = (value & 0x0f) === 0x0a;
@@ -246,6 +272,7 @@ class Mbc1 extends MbcBase {
     }
   }
 
+  // Export the state of the cartridge
   override exportState(): Uint8Array {
     const base = super.exportState();
     const extra = new Uint8Array(4);
@@ -259,6 +286,7 @@ class Mbc1 extends MbcBase {
     return out;
   }
 
+  // Import the state of the cartridge
   override importState(data: Uint8Array, offset = 0): number {
     const n = super.importState(data, offset);
     this.romBank = data[offset + n] ?? 1;
@@ -267,14 +295,29 @@ class Mbc1 extends MbcBase {
     this.mode = data[offset + n + 3] ?? 0;
     return n + 4;
   }
+
+  // ── Private ─────────────────────────────────────────────────────────────
+
+  // Calculate the effective ROM bank
+  private effectiveRomBank(): number {
+    let bank = this.romBank & 0x1f;
+    if (this.mode === 0) bank |= (this.ramBank & 3) << 5;
+    if ((bank & 0x1f) === 0) bank |= 1;
+    const max = Math.max(1, this.rom.length / 0x4000);
+    return bank % max;
+  }
 }
 
+// MBC3 class
 class Mbc3 extends MbcBase {
   private romBank = 1;
   private ramBank = 0;
   private ramEnable = false;
   private latchReg = 0xff;
 
+  // ── Public ──────────────────────────────────────────────────────────────
+
+  // Reset the cartridge
   reset(): void {
     this.romBank = 1;
     this.ramBank = 0;
@@ -282,6 +325,7 @@ class Mbc3 extends MbcBase {
     this.latchReg = 0xff;
   }
 
+  // Read from the cartridge
   read(addr: number): number {
     if (addr < 0x4000) return this.rom[addr] ?? 0xff;
     if (addr < 0x8000) {
@@ -311,6 +355,7 @@ class Mbc3 extends MbcBase {
     return 0xff;
   }
 
+  // Write to the cartridge
   write(addr: number, value: number): void {
     if (addr < 0x2000) {
       this.ramEnable = (value & 0x0f) === 0x0a;
@@ -349,6 +394,7 @@ class Mbc3 extends MbcBase {
     }
   }
 
+  // Export the state of the cartridge
   override exportState(): Uint8Array {
     const base = super.exportState();
     const extra = new Uint8Array(4);
@@ -362,6 +408,7 @@ class Mbc3 extends MbcBase {
     return out;
   }
 
+  // Import the state of the cartridge
   override importState(data: Uint8Array, offset = 0): number {
     const n = super.importState(data, offset);
     this.romBank = data[offset + n] ?? 1;
@@ -372,17 +419,22 @@ class Mbc3 extends MbcBase {
   }
 }
 
+// MBC5 class
 class Mbc5 extends MbcBase {
   private romBank = 1;
   private ramBank = 0;
   private ramEnable = false;
 
+  // ── Public ──────────────────────────────────────────────────────────────
+
+  // Reset the cartridge
   reset(): void {
     this.romBank = 1;
     this.ramBank = 0;
     this.ramEnable = false;
   }
 
+  // Read from the cartridge
   read(addr: number): number {
     if (addr < 0x4000) return this.rom[addr] ?? 0xff;
     if (addr < 0x8000) {
@@ -397,6 +449,7 @@ class Mbc5 extends MbcBase {
     return 0xff;
   }
 
+  // Write to the cartridge
   write(addr: number, value: number): void {
     if (addr < 0x2000) {
       this.ramEnable = (value & 0x0f) === 0x0a;
@@ -413,6 +466,7 @@ class Mbc5 extends MbcBase {
     }
   }
 
+  // Export the state of the cartridge
   override exportState(): Uint8Array {
     const base = super.exportState();
     const extra = new Uint8Array(4);
@@ -426,6 +480,7 @@ class Mbc5 extends MbcBase {
     return out;
   }
 
+  // Import the state of the cartridge
   override importState(data: Uint8Array, offset = 0): number {
     const n = super.importState(data, offset);
     const view = new DataView(data.buffer, data.byteOffset + offset + n);
@@ -436,6 +491,7 @@ class Mbc5 extends MbcBase {
   }
 }
 
+// Create a cartridge
 export function createCartridge(rom: Uint8Array): Cartridge {
   const info = parseHeader(rom);
   const t = info.type;

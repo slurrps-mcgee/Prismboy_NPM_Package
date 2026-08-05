@@ -1,5 +1,6 @@
 import { FLAG_C, FLAG_H, FLAG_N, FLAG_Z, BOOT_REGS, BOOT_REGS_CGB } from "@/constants/cpu.constants";
 
+/** SM83 register file: A F B C D E H L, SP, PC, and ZNHC flags. */
 export class Registers {
   a = 0;
   f = 0;
@@ -72,11 +73,14 @@ export class Registers {
     this.f = v ? this.f | FLAG_C : this.f & ~FLAG_C;
   }
 
+  /** `null` leaves that flag unchanged. */
   setFlags(z: boolean | null, n: boolean | null, h: boolean | null, c: boolean | null): void {
-    if (z !== null) this.z = z;
-    if (n !== null) this.n = n;
-    if (h !== null) this.hFlag = h;
-    if (c !== null) this.cy = c;
+    let f = this.f;
+    if (z !== null) f = z ? f | FLAG_Z : f & ~FLAG_Z;
+    if (n !== null) f = n ? f | FLAG_N : f & ~FLAG_N;
+    if (h !== null) f = h ? f | FLAG_H : f & ~FLAG_H;
+    if (c !== null) f = c ? f | FLAG_C : f & ~FLAG_C;
+    this.f = f;
   }
 
   reset(cgb: boolean, useBootRom = false): void {

@@ -1,5 +1,6 @@
 import { GameBoy } from "@/gameboy";
-import { IO, INT } from "@/constants/memory.constants";
+import { IO } from "@/constants/memory.constants";
+import { INT } from "@/constants/interrupt.constants";
 
 describe("Timer", () => {
   test("DIV increments every 256 cycles", () => {

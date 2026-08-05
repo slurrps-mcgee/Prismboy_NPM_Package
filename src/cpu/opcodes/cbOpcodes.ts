@@ -1,6 +1,6 @@
 import type { CPU } from "@/cpu/cpu";
 
-/** CB-prefix opcode handlers. */
+/** CB-prefix dispatch (rotates, BIT/RES/SET). Returns T-cycles. */
 export function executeCb(cpu: CPU, op: number): number {
     const r = cpu.registers;
     const bus = cpu.bus;

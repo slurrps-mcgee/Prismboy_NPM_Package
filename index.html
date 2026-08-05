@@ -3,84 +3,238 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>@slurrps/PrismBoy — Game Boy Color Emulator</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <title>@slurrps/PrismBoy — Full API Demo</title>
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <main class="app">
     <header>
-      <h1>@slurrps/PrismBoy</h1>
-      <p>Game Boy / Game Boy Color emulator demo</p>
+      <h1 id="pkg-title">@slurrps/PrismBoy</h1>
+      <p id="pkg-sub">Game Boy / Game Boy Color — full public API demo</p>
     </header>
 
     <section class="screen-wrap" id="screen-wrap">
       <canvas id="screen" width="160" height="144"></canvas>
       <div id="fps">FPS: —</div>
       <div id="gamepad-status" class="gamepad-status"></div>
+
+      <div class="pad overlay-pad" id="pad" hidden>
+        <div class="dpad">
+          <button type="button" data-btn="Up">▲</button>
+          <div class="mid">
+            <button type="button" data-btn="Left">◀</button>
+            <button type="button" data-btn="Right">▶</button>
+          </div>
+          <button type="button" data-btn="Down">▼</button>
+        </div>
+        <div class="actions">
+          <button type="button" data-btn="B">B</button>
+          <button type="button" data-btn="A">A</button>
+        </div>
+        <div class="system">
+          <button type="button" data-btn="Select">Select</button>
+          <button type="button" data-btn="Start">Start</button>
+        </div>
+      </div>
     </section>
 
-    <section class="controls">
-      <label class="file">
-        Load ROM
-        <input type="file" id="rom" accept=".gb,.gbc,.bin" />
-      </label>
-      <button type="button" id="reload">Reload</button>
-      <button type="button" id="quit">Quit</button>
-      <button type="button" id="mute">Mute</button>
-      <label>Vol <input type="range" id="volume" min="0" max="1" step="0.05" value="0.35" /></label>
-      <label>
-        Scale
-        <select id="scale-mode">
-          <option value="integer" selected>Integer ×3</option>
-          <option value="fit">Fit</option>
-          <option value="stretch">Stretch</option>
-          <option value="fullscreen">Fullscreen</option>
-        </select>
-      </label>
-      <label>
-        ×
-        <input type="number" id="scale-n" min="1" max="8" value="3" />
-      </label>
+    <section class="panel">
+      <h2>On-screen overlay</h2>
+      <div class="row">
+        <label><input type="checkbox" id="overlay-toggle" /> Show overlay controls</label>
+        <span id="overlay-hint" class="hint-inline">Touch / mouse buttons over the screen</span>
+      </div>
     </section>
 
-    <section class="saves">
-      <h2>Battery save (.sav)</h2>
-      <button type="button" id="download-sav">Download .sav</button>
-      <label class="file">Upload .sav <input type="file" id="upload-sav" accept=".sav,.bin" /></label>
+    <p class="hint">
+      Keyboard: Arrows · Z=A · X=B · Enter=Start · Shift=Select · Tab=turbo.
+      Gamepad: press any button on a Bluetooth/USB pad after loading the page to activate it.
+      This page wires every <code>GameBoy</code> public method for reference.
+    </p>
+    
+    <section class="panel status-panel">
+      <h2>Status / info</h2>
+      <pre id="status" class="status-box">Load a ROM to begin.</pre>
+      <div class="row">
+        <button type="button" id="refresh-status">Refresh status</button>
+        <button type="button" id="log-info">Log getRomInfo / getVersion</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>ROM / lifecycle</h2>
+      <div class="row">
+        <label class="file">Load ROM <input type="file" id="rom" accept=".gb,.gbc,.bin" /></label>
+        <button type="button" id="reload">reload()</button>
+        <button type="button" id="reset">reset()</button>
+        <button type="button" id="unload">unloadRom()</button>
+        <button type="button" id="quit">quit()</button>
+      </div>
+      <div class="row">
+        <button type="button" id="start">start() / run()</button>
+        <button type="button" id="pause">pause()</button>
+        <button type="button" id="resume">resume()</button>
+        <button type="button" id="stop">stop()</button>
+        <button type="button" id="destroy">destroy() + recreate</button>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="use-boot" checked /> setUseBootRom</label>
+        <label class="file">setBootRom <input type="file" id="boot-rom" accept=".bin,.rom,.gb" /></label>
+        <button type="button" id="clear-boot">setBootRom(null)</button>
+        <label>setRomId <input type="text" id="rom-id" value="rom" size="12" /></label>
+        <button type="button" id="apply-rom-id">Apply</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Speed / turbo</h2>
+      <div class="row">
+        <label>setSpeed <input type="range" id="speed" min="0.25" max="8" step="0.25" value="1" /></label>
+        <span id="speed-label">1×</span>
+        <label>setTurboMultiplier <input type="number" id="turbo-mult" min="0.25" max="8" step="0.25" value="4" /></label>
+        <button type="button" id="turbo">toggleTurbo()</button>
+        <span id="effective-speed">effective: 1×</span>
+      </div>
+      <p class="hint-inline">Hold <kbd>Tab</kbd> for setTurboEnabled(true)</p>
+    </section>
+
+    <section class="panel">
+      <h2>Audio</h2>
+      <div class="row">
+        <button type="button" id="enable-sound">enableSound()</button>
+        <button type="button" id="mute">mute()</button>
+        <button type="button" id="unmute">unMute()</button>
+        <button type="button" id="toggle-mute">toggleMute()</button>
+        <label>setVolume <input type="range" id="volume" min="0" max="1" step="0.05" value="0.35" /></label>
+        <span id="volume-label">0.35</span>
+        <span id="mute-state">isMuted: false</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Video / display</h2>
+      <div class="row">
+        <button type="button" id="detach-screen">detachScreen()</button>
+        <button type="button" id="attach-screen">attachScreen()</button>
+        <button type="button" id="clear-screen">clearScreen()</button>
+        <button type="button" id="fullscreen">toggleFullscreen()</button>
+        <button type="button" id="screenshot">takeScreenshot()</button>
+      </div>
+      <div class="row">
+        <label>
+          setScaleMode
+          <select id="scale-mode">
+            <option value="integer" selected>integer</option>
+            <option value="fit">fit</option>
+            <option value="stretch">stretch</option>
+            <option value="fullscreen">fullscreen</option>
+          </select>
+        </label>
+        <label>setScale <input type="number" id="scale-n" min="1" max="8" value="3" /></label>
+        <span id="scale-state">getScale: 3 · getScaleMode: integer</span>
+      </div>
+      <div class="row">
+        <label>Palette
+          <select id="palette">
+            <option value="default" selected>resetPalette()</option>
+            <option value="gray">Greyscale</option>
+            <option value="amber">Amber</option>
+            <option value="blue">Blue</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="color-correction" /> setColorCorrection</label>
+        <span id="fb-info">getWidth×getHeight / getFrameBuffer</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Input facade</h2>
+      <div class="row">
+        <button type="button" id="attach-kb">attachKeyboard()</button>
+        <button type="button" id="detach-kb">detachKeyboard()</button>
+        <button type="button" id="attach-pad">attachVirtualPad()</button>
+        <button type="button" id="detach-pad">detachVirtualPad()</button>
+        <button type="button" id="attach-gp">attachGamepad()</button>
+        <button type="button" id="detach-gp">detachGamepad()</button>
+      </div>
+      <div class="row">
+        <button type="button" id="press-a">pressButton(A)</button>
+        <button type="button" id="release-a">releaseButton(A)</button>
+        <button type="button" id="release-all">releaseAllButtons()</button>
+        <button type="button" id="remap-keys">setKeyMapping(KeyQ→A)</button>
+        <button type="button" id="remap-gp">setGamepadMap(demo)</button>
+        <span id="btn-state">isButtonPressed(A): false</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Battery save / RTC / auto-save</h2>
+      <div class="row">
+        <button type="button" id="enable-autosave">enableAutoSave()</button>
+        <button type="button" id="disable-autosave">disableAutoSave()</button>
+        <button type="button" id="load-autosave">loadAutoSave()</button>
+        <button type="button" id="get-save">getSave() → download</button>
+        <button type="button" id="download-sav">downloadSave()</button>
+        <label class="file">loadSaveFromFile <input type="file" id="upload-sav" accept=".sav,.bin" /></label>
+      </div>
+      <div class="row">
+        <button type="button" id="set-rtc">setRtc(now)</button>
+        <button type="button" id="save-dirty">isSaveDirty / hasBatterySave</button>
+        <button type="button" id="custom-save-hook">onSaveRamUpdated(cb)</button>
+        <span id="save-state">—</span>
+      </div>
+    </section>
+
+    <section class="panel">
       <h2>Savestates</h2>
       <div class="slots">
-        <button type="button" data-slot="1">Save 1</button>
-        <button type="button" data-slot="1" data-load>Load 1</button>
-        <button type="button" data-slot="2">Save 2</button>
-        <button type="button" data-slot="2" data-load>Load 2</button>
-        <button type="button" data-slot="3">Save 3</button>
-        <button type="button" data-slot="3" data-load>Load 3</button>
+        <button type="button" data-slot="1">saveStateSlot(1)</button>
+        <button type="button" data-slot="1" data-load>loadStateSlot(1)</button>
+        <button type="button" data-slot="2">saveStateSlot(2)</button>
+        <button type="button" data-slot="2" data-load>loadStateSlot(2)</button>
+        <button type="button" data-slot="3">saveStateSlot(3)</button>
+        <button type="button" data-slot="3" data-load>loadStateSlot(3)</button>
       </div>
-      <button type="button" id="download-state">Download .state</button>
-      <label class="file">Upload .state <input type="file" id="upload-state" accept=".state,.bin" /></label>
-    </section>
-
-    <section class="pad" id="pad">
-      <div class="dpad">
-        <button type="button" data-btn="Up">▲</button>
-        <div class="mid">
-          <button type="button" data-btn="Left">◀</button>
-          <button type="button" data-btn="Right">▶</button>
-        </div>
-        <button type="button" data-btn="Down">▼</button>
-      </div>
-      <div class="actions">
-        <button type="button" data-btn="B">B</button>
-        <button type="button" data-btn="A">A</button>
-      </div>
-      <div class="system">
-        <button type="button" data-btn="Select">Select</button>
-        <button type="button" data-btn="Start">Start</button>
+      <div class="row">
+        <button type="button" id="create-state">createState() → download</button>
+        <button type="button" id="download-state">downloadState()</button>
+        <label class="file">loadStateFromFile <input type="file" id="upload-state" accept=".state,.bin" /></label>
       </div>
     </section>
 
-    <p class="hint">Keyboard: Arrows · Z=A · X=B · Enter=Start · Shift=Select · Gamepad supported</p>
+    <section class="panel">
+      <h2>Execution / debug</h2>
+      <div class="row">
+        <button type="button" id="step-instr">stepInstruction()</button>
+        <button type="button" id="step-scan">stepScanline()</button>
+        <button type="button" id="step-frame">stepFrame()</button>
+      </div>
+      <div class="row">
+        <label>Breakpoint <input type="text" id="bp-addr" value="0150" size="6" /></label>
+        <button type="button" id="bp-add">setBreakpoint</button>
+        <button type="button" id="bp-remove">removeBreakpoint</button>
+        <button type="button" id="bp-clear">clearBreakpoints</button>
+        <button type="button" id="bp-list">getBreakpoints</button>
+      </div>
+      <div class="row">
+        <label>Peek <input type="text" id="mem-addr" value="C000" size="6" /></label>
+        <button type="button" id="mem-read">readByte / readMemory</button>
+        <label>Write <input type="text" id="mem-val" value="42" size="4" /></label>
+        <button type="button" id="mem-write">writeByte</button>
+        <button type="button" id="disasm">disassemble(PC, 8)</button>
+      </div>
+      <pre id="debug" class="status-box">Debug output…</pre>
+    </section>
+
+    <section class="panel">
+      <h2>Events log</h2>
+      <div class="row">
+        <button type="button" id="clear-log">Clear log</button>
+        <label><input type="checkbox" id="log-frames" /> Log every frame</label>
+      </div>
+      <pre id="event-log" class="status-box log-box"></pre>
+    </section>
   </main>
-  <script type="module" src="/src/example.ts"></script>
+  <script type="module" src="./src/example.ts"></script>
 </body>
 </html>

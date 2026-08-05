@@ -6,10 +6,12 @@ import {
   LINES_PER_FRAME,
   VBLANK_START,
   IO,
-  INT,
 } from "@/constants/memory.constants";
-import { LCDC, STAT, PPU_MODE, DMG_COLORS } from "@/constants/ppu.constants";
+import { INT } from "@/constants/interrupt.constants";
+import { LCDC, STAT, PPU_MODE } from "@/constants/ppu.constants";
+import { cloneDefaultPalette, type DmgPalette, type Rgba } from "@/ppu/palette";
 
+/** Dot-timed scanline PPU (DMG + CGB). */
 export class Ppu {
   readonly width = SCREEN_WIDTH;
   readonly height = SCREEN_HEIGHT;
@@ -31,6 +33,8 @@ export class Ppu {
   private windowLine = 0;
   private frameReady = false;
   private bgLineColors = new Uint8Array(SCREEN_WIDTH);
+  /** Host-overridable DMG shade colors (RGBA). */
+  private dmgPalette: DmgPalette = cloneDefaultPalette();
 
   constructor(private bus: Bus) {
     // ImageData requires a browser-like env; provide a transferable buffer
@@ -40,6 +44,9 @@ export class Ppu {
       : ({ data, width: SCREEN_WIDTH, height: SCREEN_HEIGHT } as ImageData);
   }
 
+  // ── Public ──────────────────────────────────────────────────────────────
+
+  // Reset the PPU
   reset(): void {
     this.ly = 0;
     this.mode = PPU_MODE.OAM;
@@ -57,7 +64,7 @@ export class Ppu {
     this.windowLine = 0;
     this.frameReady = false;
     // Clear to DMG white so reload/boot doesn't show stale frames
-    const [r, g, b, a] = DMG_COLORS[0]!;
+    const [r, g, b, a] = this.dmgPalette[0]!;
     for (let i = 0; i < this.frameBuffer.data.length; i += 4) {
       this.frameBuffer.data[i] = r;
       this.frameBuffer.data[i + 1] = g;
@@ -66,6 +73,42 @@ export class Ppu {
     }
   }
 
+  // Override DMG greyscale shades (does not affect CGB palette RAM).
+  setDmgPalette(colors: DmgPalette): void {
+    this.dmgPalette = colors.map((c) => [...c] as Rgba) as DmgPalette;
+  }
+
+  // Get the DMG palette
+  getDmgPalette(): DmgPalette {
+    return this.dmgPalette.map((c) => [...c] as Rgba) as DmgPalette;
+  }
+
+  // LCDC/STAT/scroll snapshot for debug hosts.
+  getDebugState(): {
+    ly: number;
+    mode: number;
+    lcdc: number;
+    stat: number;
+    scx: number;
+    scy: number;
+    wy: number;
+    wx: number;
+    lyc: number;
+  } {
+    return {
+      ly: this.ly,
+      mode: this.mode,
+      lcdc: this.lcdc,
+      stat: this.readStat(),
+      scx: this.scx,
+      scy: this.scy,
+      wy: this.wy,
+      wx: this.wx,
+      lyc: this.lyc,
+    };
+  }
+
+  // Write to the LCDC
   writeLcdc(value: number): void {
     const wasOn = (this.lcdc & LCDC.LCD_ENABLE) !== 0;
     this.lcdc = value;
@@ -75,27 +118,29 @@ export class Ppu {
       this.dots = 0;
       this.mode = PPU_MODE.HBLANK;
       this.windowLine = 0;
-      // Blank to white while LCD is off (games rewrites VRAM during this)
-      this.fillFrame(DMG_COLORS[0]!);
+      // Blank to white while LCD is off (game rewrites VRAM during this)
+      this.fillFrame(this.dmgPalette[0]!);
     }
   }
 
-  /** Called when WY is written — hardware resets the window line counter. */
+  // Called when WY is written — hardware resets the window line counter.
   onWyWrite(): void {
     this.windowLine = 0;
   }
 
+  // Write to the STAT
   writeStat(value: number): void {
     this.stat = (value & 0x78) | (this.stat & 0x07);
   }
 
+  // Read from the STAT
   readStat(): number {
     let s = (this.stat & 0x78) | (this.mode & 3);
     if (this.ly === this.lyc) s |= STAT.LYC_EQ;
     return s;
   }
 
-  /** Advance PPU by T-cycles. Returns true if a frame completed. */
+  // Advance PPU by T-cycles. Returns true if a frame completed.
   tick(cycles: number): boolean {
     this.syncFromBus();
     if (!(this.lcdc & LCDC.LCD_ENABLE)) {
@@ -140,6 +185,52 @@ export class Ppu {
     return this.frameReady;
   }
 
+  // Export the state of the PPU
+  exportState(): Uint8Array {
+    const buf = new Uint8Array(32 + this.frameBuffer.data.length);
+    const v = new DataView(buf.buffer);
+    buf[0] = this.ly;
+    buf[1] = this.mode;
+    v.setUint16(2, this.dots, true);
+    buf[4] = this.lcdc;
+    buf[5] = this.stat;
+    buf[6] = this.scx;
+    buf[7] = this.scy;
+    buf[8] = this.wy;
+    buf[9] = this.wx;
+    buf[10] = this.lyc;
+    buf[11] = this.bgp;
+    buf[12] = this.obp0;
+    buf[13] = this.obp1;
+    buf[14] = this.windowLine;
+    buf.set(this.frameBuffer.data, 32);
+    return buf;
+  }
+
+  // Import the state of the PPU
+  importState(data: Uint8Array, offset = 0): number {
+    const v = new DataView(data.buffer, data.byteOffset + offset);
+    this.ly = data[offset]!;
+    this.mode = data[offset + 1]!;
+    this.dots = v.getUint16(2, true);
+    this.lcdc = data[offset + 4]!;
+    this.stat = data[offset + 5]!;
+    this.scx = data[offset + 6]!;
+    this.scy = data[offset + 7]!;
+    this.wy = data[offset + 8]!;
+    this.wx = data[offset + 9]!;
+    this.lyc = data[offset + 10]!;
+    this.bgp = data[offset + 11]!;
+    this.obp0 = data[offset + 12]!;
+    this.obp1 = data[offset + 13]!;
+    this.windowLine = data[offset + 14]!;
+    this.frameBuffer.data.set(data.subarray(offset + 32, offset + 32 + this.frameBuffer.data.length));
+    return 32 + this.frameBuffer.data.length;
+  }
+
+  // ── Private ─────────────────────────────────────────────────────────────
+
+  // Sync from the bus
   private syncFromBus(): void {
     this.lcdc = this.bus.io[IO.LCDC - 0xff00]!;
     this.scx = this.bus.io[IO.SCX - 0xff00]!;
@@ -152,6 +243,7 @@ export class Ppu {
     this.obp1 = this.bus.io[IO.OBP1 - 0xff00]!;
   }
 
+  // Set the mode
   private setMode(mode: number): void {
     if (this.mode === mode) return;
     this.mode = mode;
@@ -171,6 +263,7 @@ export class Ppu {
     if (fire) this.bus.requestInterrupt(INT.STAT);
   }
 
+  // Check the LYC
   private checkLyc(): void {
     const eq = this.ly === this.lyc;
     if (eq) {
@@ -182,19 +275,24 @@ export class Ppu {
     this.bus.io[IO.STAT - 0xff00] = this.readStat();
   }
 
+  private lineBase = 0;
+
+  // Render the scanline
   private renderScanline(): void {
     this.bgLineColors.fill(0);
+    this.lineBase = this.ly * SCREEN_WIDTH * 4;
     if (this.bus.cgbMode) {
       this.renderBgCgb();
       this.renderSpritesCgb();
     } else {
       if (this.lcdc & LCDC.BG_ENABLE) this.renderBgDmg();
-      else this.fillLine(DMG_COLORS[0]!);
+      else this.fillLine(this.dmgPalette[0]!);
       if (this.lcdc & LCDC.WINDOW_ENABLE) this.renderWindowDmg();
       if (this.lcdc & LCDC.OBJ_ENABLE) this.renderSpritesDmg();
     }
   }
 
+  // Fill the line
   private fillLine(color: [number, number, number, number]): void {
     const row = this.ly * SCREEN_WIDTH * 4;
     for (let x = 0; x < SCREEN_WIDTH; x++) {
@@ -206,6 +304,7 @@ export class Ppu {
     }
   }
 
+  // Fill the frame
   private fillFrame(color: [number, number, number, number]): void {
     for (let i = 0; i < this.frameBuffer.data.length; i += 4) {
       this.frameBuffer.data[i] = color[0];
@@ -215,7 +314,7 @@ export class Ppu {
     }
   }
 
-  /** Window is visible this scanline if enabled, LY>=WY, and WX in 0..166. */
+  // Window is visible this scanline if enabled, LY>=WY, and WX in 0..166.
   private windowVisible(): boolean {
     return (
       (this.lcdc & LCDC.WINDOW_ENABLE) !== 0 &&
@@ -224,37 +323,44 @@ export class Ppu {
     );
   }
 
+  // Get the palette color
   private paletteColor(palette: number, index: number): [number, number, number, number] {
     const shade = (palette >> (index * 2)) & 3;
-    return DMG_COLORS[shade]!;
+    return this.dmgPalette[shade]!;
   }
 
+  // Render the background in DMG mode (tile fetch batched every 8 px)
   private renderBgDmg(): void {
     const mapBase = this.lcdc & LCDC.BG_TILEMAP ? 0x9c00 : 0x9800;
     const signed = !(this.lcdc & LCDC.TILE_DATA);
     const y = (this.scy + this.ly) & 0xff;
     const tileRow = (y >> 3) & 31;
+    const line = (y & 7) * 2;
+    const vram = this.bus.vram[0]!;
+    let lastCol = -1;
+    let lo = 0;
+    let hi = 0;
     for (let x = 0; x < SCREEN_WIDTH; x++) {
       const px = (this.scx + x) & 0xff;
       const tileCol = (px >> 3) & 31;
-      const mapAddr = mapBase + tileRow * 32 + tileCol;
-      let tile = this.bus.read(mapAddr);
-      let tileAddr: number;
-      if (signed) {
-        tileAddr = 0x9000 + ((tile << 24) >> 24) * 16;
-      } else {
-        tileAddr = 0x8000 + tile * 16;
+      if (tileCol !== lastCol) {
+        lastCol = tileCol;
+        const mapAddr = mapBase + tileRow * 32 + tileCol;
+        const tile = vram[mapAddr - 0x8000]!;
+        const tileAddr = signed
+          ? 0x9000 + ((tile << 24) >> 24) * 16
+          : 0x8000 + tile * 16;
+        lo = vram[tileAddr - 0x8000 + line]!;
+        hi = vram[tileAddr - 0x8000 + line + 1]!;
       }
-      const line = (y & 7) * 2;
-      const lo = this.bus.vram[0]![tileAddr - 0x8000 + line]!;
-      const hi = this.bus.vram[0]![tileAddr - 0x8000 + line + 1]!;
       const bit = 7 - (px & 7);
       const colorId = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
       this.bgLineColors[x] = colorId;
-      this.putPixel(x, this.ly, this.paletteColor(this.bgp, colorId));
+      this.putPixel(x, this.paletteColor(this.bgp, colorId));
     }
   }
 
+  // Render the window in DMG mode
   private renderWindowDmg(): void {
     if (!this.windowVisible()) return;
     const wx = this.wx - 7;
@@ -262,28 +368,36 @@ export class Ppu {
     const signed = !(this.lcdc & LCDC.TILE_DATA);
     const y = this.windowLine;
     const tileRow = (y >> 3) & 31;
+    const line = (y & 7) * 2;
+    const vram = this.bus.vram[0]!;
+    let lastCol = -1;
+    let lo = 0;
+    let hi = 0;
     let drew = false;
     for (let x = Math.max(0, wx); x < SCREEN_WIDTH; x++) {
       drew = true;
       const px = x - wx;
       const tileCol = (px >> 3) & 31;
-      const mapAddr = mapBase + tileRow * 32 + tileCol;
-      const tile = this.bus.vram[0]![mapAddr - 0x8000]!;
-      let tileAddr: number;
-      if (signed) tileAddr = 0x9000 + ((tile << 24) >> 24) * 16;
-      else tileAddr = 0x8000 + tile * 16;
-      const line = (y & 7) * 2;
-      const lo = this.bus.vram[0]![tileAddr - 0x8000 + line]!;
-      const hi = this.bus.vram[0]![tileAddr - 0x8000 + line + 1]!;
+      if (tileCol !== lastCol) {
+        lastCol = tileCol;
+        const mapAddr = mapBase + tileRow * 32 + tileCol;
+        const tile = vram[mapAddr - 0x8000]!;
+        const tileAddr = signed
+          ? 0x9000 + ((tile << 24) >> 24) * 16
+          : 0x8000 + tile * 16;
+        lo = vram[tileAddr - 0x8000 + line]!;
+        hi = vram[tileAddr - 0x8000 + line + 1]!;
+      }
       const bit = 7 - (px & 7);
       const colorId = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
       this.bgLineColors[x] = colorId;
-      this.putPixel(x, this.ly, this.paletteColor(this.bgp, colorId));
+      this.putPixel(x, this.paletteColor(this.bgp, colorId));
     }
     // Only advance internal line counter when at least one pixel was drawn
     if (drew) this.windowLine++;
   }
 
+  // Render the sprites in DMG mode
   private renderSpritesDmg(): void {
     const tall = (this.lcdc & LCDC.OBJ_SIZE) !== 0;
     const height = tall ? 16 : 8;
@@ -316,11 +430,12 @@ export class Ppu {
         const x = sp.x + px;
         if (x < 0 || x >= SCREEN_WIDTH) continue;
         if ((sp.attr & 0x80) && this.bgLineColors[x]! !== 0) continue;
-        this.putPixel(x, this.ly, this.paletteColor(pal, colorId));
+        this.putPixel(x, this.paletteColor(pal, colorId));
       }
     }
   }
 
+  // Get the CGB color
   private cgbColor(paletteRam: Uint8Array, palette: number, colorId: number): [number, number, number, number] {
     const idx = palette * 8 + colorId * 2;
     const lo = paletteRam[idx]!;
@@ -336,33 +451,46 @@ export class Ppu {
     return [r, g, b, 255];
   }
 
+  // Render the background in CGB mode (tile fetch batched every 8 px)
   private renderBgCgb(): void {
     const mapBase = this.lcdc & LCDC.BG_TILEMAP ? 0x9c00 : 0x9800;
     const signed = !(this.lcdc & LCDC.TILE_DATA);
     const y = (this.scy + this.ly) & 0xff;
     const tileRow = (y >> 3) & 31;
     const bgPriority = (this.lcdc & LCDC.BG_ENABLE) !== 0;
+    const vram0 = this.bus.vram[0]!;
+    const vram1 = this.bus.vram[1]!;
+    let lastCol = -1;
+    let lo = 0;
+    let hi = 0;
+    let pal = 0;
+    let attr = 0;
+    let flipX = false;
 
     for (let x = 0; x < SCREEN_WIDTH; x++) {
       const px = (this.scx + x) & 0xff;
       const tileCol = (px >> 3) & 31;
-      const mapAddr = mapBase + tileRow * 32 + tileCol;
-      const tile = this.bus.vram[0]![mapAddr - 0x8000]!;
-      const attr = this.bus.vram[1]![mapAddr - 0x8000]!;
-      const bank = (attr & 0x08) ? 1 : 0;
-      const pal = attr & 7;
-      let tileAddr: number;
-      if (signed) tileAddr = 0x9000 + ((tile << 24) >> 24) * 16;
-      else tileAddr = 0x8000 + tile * 16;
-      let line = y & 7;
-      if (attr & 0x40) line = 7 - line;
-      const lo = this.bus.vram[bank]![tileAddr - 0x8000 + line * 2]!;
-      const hi = this.bus.vram[bank]![tileAddr - 0x8000 + line * 2 + 1]!;
+      if (tileCol !== lastCol) {
+        lastCol = tileCol;
+        const mapAddr = mapBase + tileRow * 32 + tileCol;
+        const tile = vram0[mapAddr - 0x8000]!;
+        attr = vram1[mapAddr - 0x8000]!;
+        const bank = (attr & 0x08) ? 1 : 0;
+        pal = attr & 7;
+        const tileAddr = signed
+          ? 0x9000 + ((tile << 24) >> 24) * 16
+          : 0x8000 + tile * 16;
+        let line = y & 7;
+        if (attr & 0x40) line = 7 - line;
+        lo = this.bus.vram[bank]![tileAddr - 0x8000 + line * 2]!;
+        hi = this.bus.vram[bank]![tileAddr - 0x8000 + line * 2 + 1]!;
+        flipX = (attr & 0x20) !== 0;
+      }
       let bit = px & 7;
-      if (!(attr & 0x20)) bit = 7 - bit;
+      if (!flipX) bit = 7 - bit;
       const colorId = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
       this.bgLineColors[x] = colorId | ((attr & 0x80) ? 0x80 : 0) | (bgPriority ? 0x40 : 0);
-      this.putPixel(x, this.ly, this.cgbColor(this.bus.bgPalette, pal, colorId));
+      this.putPixel(x, this.cgbColor(this.bus.bgPalette, pal, colorId));
     }
 
     // Window — only when visible; advance windowLine only if pixels drawn
@@ -371,33 +499,39 @@ export class Ppu {
       const wMap = this.lcdc & LCDC.WINDOW_TILEMAP ? 0x9c00 : 0x9800;
       const wy = this.windowLine;
       const wRow = (wy >> 3) & 31;
+      lastCol = -1;
       let drew = false;
       for (let x = Math.max(0, wx); x < SCREEN_WIDTH; x++) {
         drew = true;
         const px = x - wx;
         const tileCol = (px >> 3) & 31;
-        const mapAddr = wMap + wRow * 32 + tileCol;
-        const tile = this.bus.vram[0]![mapAddr - 0x8000]!;
-        const attr = this.bus.vram[1]![mapAddr - 0x8000]!;
-        const bank = (attr & 0x08) ? 1 : 0;
-        const pal = attr & 7;
-        let tileAddr: number;
-        if (signed) tileAddr = 0x9000 + ((tile << 24) >> 24) * 16;
-        else tileAddr = 0x8000 + tile * 16;
-        let line = wy & 7;
-        if (attr & 0x40) line = 7 - line;
-        const lo = this.bus.vram[bank]![tileAddr - 0x8000 + line * 2]!;
-        const hi = this.bus.vram[bank]![tileAddr - 0x8000 + line * 2 + 1]!;
+        if (tileCol !== lastCol) {
+          lastCol = tileCol;
+          const mapAddr = wMap + wRow * 32 + tileCol;
+          const tile = vram0[mapAddr - 0x8000]!;
+          attr = vram1[mapAddr - 0x8000]!;
+          const bank = (attr & 0x08) ? 1 : 0;
+          pal = attr & 7;
+          const tileAddr = signed
+            ? 0x9000 + ((tile << 24) >> 24) * 16
+            : 0x8000 + tile * 16;
+          let line = wy & 7;
+          if (attr & 0x40) line = 7 - line;
+          lo = this.bus.vram[bank]![tileAddr - 0x8000 + line * 2]!;
+          hi = this.bus.vram[bank]![tileAddr - 0x8000 + line * 2 + 1]!;
+          flipX = (attr & 0x20) !== 0;
+        }
         let bit = px & 7;
-        if (!(attr & 0x20)) bit = 7 - bit;
+        if (!flipX) bit = 7 - bit;
         const colorId = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
         this.bgLineColors[x] = colorId | ((attr & 0x80) ? 0x80 : 0) | 0x40;
-        this.putPixel(x, this.ly, this.cgbColor(this.bus.bgPalette, pal, colorId));
+        this.putPixel(x, this.cgbColor(this.bus.bgPalette, pal, colorId));
       }
       if (drew) this.windowLine++;
     }
   }
 
+  // Render the sprites in CGB mode
   private renderSpritesCgb(): void {
     if (!(this.lcdc & LCDC.OBJ_ENABLE)) return;
     const tall = (this.lcdc & LCDC.OBJ_SIZE) !== 0;
@@ -453,57 +587,16 @@ export class Ppu {
         ) {
           continue;
         }
-        this.putPixel(x, this.ly, this.cgbColor(this.bus.objPalette, pal, colorId));
+        this.putPixel(x, this.cgbColor(this.bus.objPalette, pal, colorId));
       }
     }
   }
 
-  private putPixel(x: number, y: number, color: [number, number, number, number]): void {
-    const i = (y * SCREEN_WIDTH + x) * 4;
+  private putPixel(x: number, color: [number, number, number, number]): void {
+    const i = this.lineBase + x * 4;
     this.frameBuffer.data[i] = color[0];
     this.frameBuffer.data[i + 1] = color[1];
     this.frameBuffer.data[i + 2] = color[2];
     this.frameBuffer.data[i + 3] = color[3];
-  }
-
-  exportState(): Uint8Array {
-    const buf = new Uint8Array(32 + this.frameBuffer.data.length);
-    const v = new DataView(buf.buffer);
-    buf[0] = this.ly;
-    buf[1] = this.mode;
-    v.setUint16(2, this.dots, true);
-    buf[4] = this.lcdc;
-    buf[5] = this.stat;
-    buf[6] = this.scx;
-    buf[7] = this.scy;
-    buf[8] = this.wy;
-    buf[9] = this.wx;
-    buf[10] = this.lyc;
-    buf[11] = this.bgp;
-    buf[12] = this.obp0;
-    buf[13] = this.obp1;
-    buf[14] = this.windowLine;
-    buf.set(this.frameBuffer.data, 32);
-    return buf;
-  }
-
-  importState(data: Uint8Array, offset = 0): number {
-    const v = new DataView(data.buffer, data.byteOffset + offset);
-    this.ly = data[offset]!;
-    this.mode = data[offset + 1]!;
-    this.dots = v.getUint16(2, true);
-    this.lcdc = data[offset + 4]!;
-    this.stat = data[offset + 5]!;
-    this.scx = data[offset + 6]!;
-    this.scy = data[offset + 7]!;
-    this.wy = data[offset + 8]!;
-    this.wx = data[offset + 9]!;
-    this.lyc = data[offset + 10]!;
-    this.bgp = data[offset + 11]!;
-    this.obp0 = data[offset + 12]!;
-    this.obp1 = data[offset + 13]!;
-    this.windowLine = data[offset + 14]!;
-    this.frameBuffer.data.set(data.subarray(offset + 32, offset + 32 + this.frameBuffer.data.length));
-    return 32 + this.frameBuffer.data.length;
   }
 }

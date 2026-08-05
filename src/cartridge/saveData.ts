@@ -1,7 +1,8 @@
+// Save data constants
 const MAGIC = new TextEncoder().encode("GBCSV");
 const VERSION = 1;
 
-/** Battery save format: magic(5) + version(1) + sramLen(u32) + sram + rtcPresent(u8) + rtc(48 optional) */
+// Serialize the save data
 export function serializeSave(sram: Uint8Array, rtc: {
   s: number; m: number; h: number; dl: number; dh: number; lastUnixMs: number;
 } | null): Uint8Array {
@@ -24,6 +25,7 @@ export function serializeSave(sram: Uint8Array, rtc: {
   return buf;
 }
 
+// Deserialize the save data
 export function deserializeSave(data: Uint8Array): {
   sram: Uint8Array;
   rtc: { s: number; m: number; h: number; dl: number; dh: number; lastUnixMs: number } | null;

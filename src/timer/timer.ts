@@ -1,5 +1,6 @@
 import type { Bus } from "@/bus/bus";
-import { IO, INT } from "@/constants/memory.constants";
+import { INT } from "@/constants/interrupt.constants";
+import { IO } from "@/constants/memory.constants";
 
 const TAC_ENABLE = 0x04;
 const TAC_FREQ = [1024, 16, 64, 256];
@@ -14,6 +15,9 @@ export class Timer {
 
   constructor(private bus: Bus) {}
 
+  // ── Public ──────────────────────────────────────────────────────────────
+
+  // Reset the timer
   reset(): void {
     this.div = 0;
     this.tima = 0;
@@ -23,6 +27,7 @@ export class Timer {
     this.timaCounter = 0;
   }
 
+  // Read from the timer
   read(addr: number): number {
     switch (addr) {
       case IO.DIV: return this.div;
@@ -33,6 +38,7 @@ export class Timer {
     }
   }
 
+  // Write to the timer
   write(addr: number, value: number): void {
     switch (addr) {
       case IO.DIV:
@@ -51,6 +57,7 @@ export class Timer {
     }
   }
 
+  // Tick the timer
   tick(cycles: number): void {
     this.divCounter += cycles;
     while (this.divCounter >= 256) {
@@ -72,6 +79,7 @@ export class Timer {
     }
   }
 
+  // Export the state of the timer
   exportState(): Uint8Array {
     const buf = new Uint8Array(12);
     const v = new DataView(buf.buffer);
@@ -84,6 +92,7 @@ export class Timer {
     return buf;
   }
 
+  // Import the state of the timer
   importState(data: Uint8Array, offset = 0): number {
     const v = new DataView(data.buffer, data.byteOffset + offset);
     this.div = data[offset]!;

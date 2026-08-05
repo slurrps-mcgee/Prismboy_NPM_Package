@@ -1,7 +1,8 @@
-export const FLAG_Z = 0x80;
-export const FLAG_N = 0x40;
-export const FLAG_H = 0x20;
-export const FLAG_C = 0x10;
+// CPU constants
+export const FLAG_Z = 0x80; // Zero flag
+export const FLAG_N = 0x40; // Negative flag
+export const FLAG_H = 0x20; // Half carry flag
+export const FLAG_C = 0x10; // Carry flag
 
 /** Post-boot DMG register values (skip boot ROM) */
 export const BOOT_REGS = {

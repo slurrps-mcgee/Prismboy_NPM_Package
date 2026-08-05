@@ -1,3 +1,4 @@
+// Joypad constants
 export enum Button {
   Right = 0,
   Left = 1,
@@ -9,7 +10,7 @@ export enum Button {
   Start = 7,
 }
 
-/** Default keyboard → button map (KeyboardEvent.code) */
+// Default keyboard → button map (KeyboardEvent.code)
 export const DEFAULT_KEYBOARD_MAPPING: Record<string, Button> = {
   ArrowRight: Button.Right,
   ArrowLeft: Button.Left,

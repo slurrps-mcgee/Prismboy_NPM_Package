@@ -442,7 +442,7 @@ Related files:
 - LCDC.0 = 0 → sprites always win over BG (CGB master priority)
 - 8×16: select tile half from unflipped Y, then Y-flip within the 8-px tile
 
-Helpers `src/ppu/sprites.ts` / `tiles.ts` exist but most rendering is inlined in `ppu.ts`.
+BG/window/sprite rendering is inlined in `ppu.ts`.
 
 ---
 
@@ -460,7 +460,7 @@ Helpers `src/ppu/sprites.ts` / `tiles.ts` exist but most rendering is inlined in
 
 Mixing uses NR50/NR51. Ring buffer drops oldest samples if the audio callback falls behind.
 
-`src/apu/channels/index.ts` is a stub; channel state lives inside `Apu`.
+Channel state lives inside `Apu` (`src/apu/apu.ts`).
 
 ---
 

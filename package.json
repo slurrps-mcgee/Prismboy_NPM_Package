@@ -3,7 +3,7 @@
   "author": "Slurrps",
   "license": "MIT",
   "private": false,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "main": "./dist/gameboy.js",
   "types": "./dist/gameboy.d.ts",
@@ -22,6 +22,7 @@
   "scripts": {
     "dev": "vite",
     "build": "webpack",
+    "build:demo": "vite build",
     "preview": "vite preview",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"

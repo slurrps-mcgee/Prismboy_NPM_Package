@@ -1,3 +1,4 @@
+// LCDC constants
 export const LCDC = {
   BG_ENABLE: 0x01,
   OBJ_ENABLE: 0x02,
@@ -9,6 +10,7 @@ export const LCDC = {
   LCD_ENABLE: 0x80,
 } as const;
 
+// STAT constants
 export const STAT = {
   MODE: 0x03,
   LYC_EQ: 0x04,
@@ -18,6 +20,7 @@ export const STAT = {
   LYC_INT: 0x40,
 } as const;
 
+// PPU mode constants
 export const PPU_MODE = {
   HBLANK: 0,
   VBLANK: 1,
@@ -25,7 +28,7 @@ export const PPU_MODE = {
   TRANSFER: 3,
 } as const;
 
-/** Classic DMG greyscale (RGBA) */
+// Classic DMG greyscale (RGBA)
 export const DMG_COLORS: [number, number, number, number][] = [
   [224, 248, 208, 255],
   [136, 192, 112, 255],

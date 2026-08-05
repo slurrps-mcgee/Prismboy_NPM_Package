@@ -1,11 +1,12 @@
 import type { CPU } from "@/cpu/cpu";
 import { executeCb } from "@/cpu/opcodes/cbOpcodes";
 
-/** Main SM83 opcode table. */
+/** Main SM83 opcode dispatch. Returns T-cycles. */
 export function executeOpcode(cpu: CPU, op: number): number {
     const r = cpu.registers;
     const bus = cpu.bus;
 
+    // Execute the opcode returning the number of cycles
     switch (op) {
       case 0x00: return 4; // NOP
       case 0x01: r.bc = cpu.fetch16(); return 12;

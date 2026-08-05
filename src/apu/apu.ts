@@ -9,6 +9,8 @@ type Pulse = {
   enabled: boolean;
   dac: boolean;
   freq: number;
+  /** Cached hz / SAMPLE_RATE — updated when freq changes. */
+  phaseInc: number;
   duty: number;
   vol: number;
   phase: number;
@@ -23,11 +25,9 @@ type Pulse = {
   sweepShadow: number;
 };
 
-/**
- * APU with gbcore-style phase oscillators sampled at 44100 Hz
- * (CPU_HZ / 44100 cycles per sample) for correct pitch.
- */
+/** Phase-oscillator APU: mix 4 channels at 44100 Hz (CPU_HZ/44100 cycles per sample). */
 export class Apu {
+  // APU state
   private soundEnabled = false;
   private muted = false;
   private volume = 0.35;
@@ -38,7 +38,6 @@ export class Apu {
   private frameSeq = 0;
   private frameCounter = 0;
   private sampleAccum = 0;
-
   private ctx: AudioContext | null = null;
   private gain: GainNode | null = null;
   private scriptNode: ScriptProcessorNode | null = null;
@@ -47,12 +46,14 @@ export class Apu {
   private bufWrite = 0;
   private bufCount = 0;
 
+  // Pulse channels
   private ch1: Pulse = this.freshPulse();
   private ch2: Pulse = this.freshPulse();
   private ch3 = {
     enabled: false,
     dac: false,
     freq: 0,
+    phaseInc: 0,
     volShift: 4,
     phase: 0,
     length: 0,
@@ -73,26 +74,9 @@ export class Apu {
     shift: 0,
   };
 
-  private freshPulse(): Pulse {
-    return {
-      enabled: false,
-      dac: false,
-      freq: 0,
-      duty: 0,
-      vol: 0,
-      phase: 0,
-      length: 0,
-      envPeriod: 0,
-      envTimer: 0,
-      envDir: 0,
-      sweepPeriod: 0,
-      sweepTimer: 0,
-      sweepShift: 0,
-      sweepDir: 0,
-      sweepShadow: 0,
-    };
-  }
+  // ── Public ──────────────────────────────────────────────────────────────
 
+  // Reset the APU
   reset(): void {
     this.regs.fill(0);
     this.nr52 = 0;
@@ -105,6 +89,8 @@ export class Apu {
     this.ch2 = this.freshPulse();
     this.ch3.enabled = false;
     this.ch3.dac = false;
+    this.ch3.freq = 0;
+    this.ch3.phaseInc = 0;
     this.ch3.phase = 0;
     this.ch3.wave.fill(0);
     this.ch4.enabled = false;
@@ -113,7 +99,7 @@ export class Apu {
     this.clearBuffer();
   }
 
-  /** Idempotent — safe to call on every ROM load without duplicating nodes. */
+  // Enable sound
   enableSound(): void {
     if (typeof AudioContext === "undefined" && typeof (globalThis as { webkitAudioContext?: unknown }).webkitAudioContext === "undefined") {
       this.soundEnabled = true;
@@ -140,25 +126,30 @@ export class Apu {
     this.soundEnabled = true;
   }
 
+  // Mute the APU
   mute(): void {
     this.muted = true;
     if (this.gain) this.gain.gain.value = 0;
   }
 
+  // Unmute the APU
   unMute(): void {
     this.muted = false;
     if (this.gain) this.gain.gain.value = this.volume;
   }
 
+  // Set the volume of the APU
   setVolume(v: number): void {
     this.volume = Math.max(0, Math.min(1, v));
     if (this.gain && !this.muted) this.gain.gain.value = this.volume;
   }
 
+  // Get the volume of the APU
   getVolume(): number {
     return this.volume;
   }
 
+  // Read from the APU
   read(addr: number): number {
     if (addr === IO.NR52) {
       let v = (this.nr52 & 0x80) | 0x70;
@@ -177,6 +168,7 @@ export class Apu {
     return (this.regs[off] ?? 0) | (masks[off] ?? 0);
   }
 
+  // Write to the APU
   write(addr: number, value: number): void {
     if (addr === IO.NR52) {
       const wasOn = (this.nr52 & 0x80) !== 0;
@@ -230,14 +222,106 @@ export class Apu {
 
     // Live period updates
     if (addr === IO.NR13 || addr === IO.NR14) {
-      this.ch1.freq = this.regs[IO.NR13 - IO.NR10]! | ((this.regs[IO.NR14 - IO.NR10]! & 7) << 8);
+      this.setPulseFreq(this.ch1, this.regs[IO.NR13 - IO.NR10]! | ((this.regs[IO.NR14 - IO.NR10]! & 7) << 8));
     }
     if (addr === IO.NR23 || addr === IO.NR24) {
-      this.ch2.freq = this.regs[IO.NR23 - IO.NR10]! | ((this.regs[IO.NR24 - IO.NR10]! & 7) << 8);
+      this.setPulseFreq(this.ch2, this.regs[IO.NR23 - IO.NR10]! | ((this.regs[IO.NR24 - IO.NR10]! & 7) << 8));
     }
     if (addr === IO.NR33 || addr === IO.NR34) {
-      this.ch3.freq = this.regs[IO.NR33 - IO.NR10]! | ((this.regs[IO.NR34 - IO.NR10]! & 7) << 8);
+      this.setWaveFreq(this.regs[IO.NR33 - IO.NR10]! | ((this.regs[IO.NR34 - IO.NR10]! & 7) << 8));
     }
+  }
+
+  // Tick the APU (advance the sample clock and mix samples)
+  tick(cycles: number): void {
+    // Still advance sample clock when powered off (silence)
+    this.sampleAccum += cycles;
+    if (this.nr52 & 0x80) {
+      this.frameCounter += cycles;
+      while (this.frameCounter >= 8192) {
+        this.frameCounter -= 8192;
+        this.clockFrameSeq();
+      }
+    }
+
+    while (this.sampleAccum >= CYCLES_PER_SAMPLE) {
+      this.sampleAccum -= CYCLES_PER_SAMPLE;
+      if (this.soundEnabled) this.pushSample(this.mixSample());
+    }
+  }
+
+  // Clear the audio buffer
+  clearAudioBuffer(): void {
+    this.clearBuffer();
+  }
+
+  // Export the state of the APU
+  exportState(): Uint8Array {
+    const buf = new Uint8Array(72);
+    buf.set(this.regs.subarray(0, 48), 0);
+    buf[48] = this.nr52;
+    buf[49] = this.nr50;
+    buf[50] = this.nr51;
+    buf[51] = this.frameSeq;
+    buf[52] = this.ch1.enabled ? 1 : 0;
+    buf[53] = this.ch2.enabled ? 1 : 0;
+    buf[54] = this.ch3.enabled ? 1 : 0;
+    buf[55] = this.ch4.enabled ? 1 : 0;
+    buf.set(this.ch3.wave, 56);
+    return buf;
+  }
+
+  // Import the state of the APU
+  importState(data: Uint8Array, offset = 0): number {
+    this.regs.set(data.subarray(offset, offset + 48));
+    this.nr52 = data[offset + 48]!;
+    this.nr50 = data[offset + 49]!;
+    this.nr51 = data[offset + 50]!;
+    this.frameSeq = data[offset + 51]!;
+    this.ch1.enabled = data[offset + 52]! !== 0;
+    this.ch2.enabled = data[offset + 53]! !== 0;
+    this.ch3.enabled = data[offset + 54]! !== 0;
+    this.ch4.enabled = data[offset + 55]! !== 0;
+    this.ch3.wave.set(data.subarray(offset + 56, offset + 72));
+    this.setPulseFreq(this.ch1, this.regs[IO.NR13 - IO.NR10]! | ((this.regs[IO.NR14 - IO.NR10]! & 7) << 8));
+    this.setPulseFreq(this.ch2, this.regs[IO.NR23 - IO.NR10]! | ((this.regs[IO.NR24 - IO.NR10]! & 7) << 8));
+    this.setWaveFreq(this.regs[IO.NR33 - IO.NR10]! | ((this.regs[IO.NR34 - IO.NR10]! & 7) << 8));
+    this.clearBuffer();
+    return 72;
+  }
+
+  // ── Private ─────────────────────────────────────────────────────────────
+
+  // Create a new pulse channel
+  private freshPulse(): Pulse {
+    return {
+      enabled: false,
+      dac: false,
+      freq: 0,
+      phaseInc: 0,
+      duty: 0,
+      vol: 0,
+      phase: 0,
+      length: 0,
+      envPeriod: 0,
+      envTimer: 0,
+      envDir: 0,
+      sweepPeriod: 0,
+      sweepTimer: 0,
+      sweepShift: 0,
+      sweepDir: 0,
+      sweepShadow: 0,
+    };
+  }
+
+  private setPulseFreq(ch: Pulse, freq: number): void {
+    ch.freq = freq;
+    ch.phaseInc = this.hzPulse(freq) / SAMPLE_RATE;
+  }
+
+  private setWaveFreq(freq: number): void {
+    this.ch3.freq = freq;
+    this.ch3.phaseInc = this.hzWave(freq) / SAMPLE_RATE;
   }
 
   private triggerCh1(): void {
@@ -254,7 +338,7 @@ export class Apu {
     this.ch1.envPeriod = nr12 & 7;
     this.ch1.envTimer = this.ch1.envPeriod;
     this.ch1.envDir = (nr12 & 8) ? 1 : -1;
-    this.ch1.freq = nr13 | ((nr14 & 7) << 8);
+    this.setPulseFreq(this.ch1, nr13 | ((nr14 & 7) << 8));
     this.ch1.sweepPeriod = (nr10 >> 4) & 7;
     this.ch1.sweepTimer = this.ch1.sweepPeriod || 8;
     this.ch1.sweepDir = (nr10 & 8) ? -1 : 1;
@@ -275,9 +359,10 @@ export class Apu {
     this.ch2.envPeriod = nr22 & 7;
     this.ch2.envTimer = this.ch2.envPeriod;
     this.ch2.envDir = (nr22 & 8) ? 1 : -1;
-    this.ch2.freq = nr23 | ((nr24 & 7) << 8);
+    this.setPulseFreq(this.ch2, nr23 | ((nr24 & 7) << 8));
   }
 
+  // Trigger wave channel (CH3)
   private triggerCh3(): void {
     const nr31 = this.regs[IO.NR31 - IO.NR10]!;
     const nr32 = this.regs[IO.NR32 - IO.NR10]!;
@@ -287,10 +372,11 @@ export class Apu {
     this.ch3.enabled = this.ch3.dac;
     if (this.ch3.length === 0) this.ch3.length = 256 - nr31;
     this.ch3.volShift = [4, 0, 1, 2][(nr32 >> 5) & 3]!;
-    this.ch3.freq = nr33 | ((nr34 & 7) << 8);
+    this.setWaveFreq(nr33 | ((nr34 & 7) << 8));
     this.ch3.phase = 0;
   }
 
+  // Trigger noise channel (CH4)
   private triggerCh4(): void {
     const nr41 = this.regs[IO.NR41 - IO.NR10]!;
     const nr42 = this.regs[IO.NR42 - IO.NR10]!;
@@ -309,23 +395,7 @@ export class Apu {
     this.ch4.phaseTimer = 0;
   }
 
-  tick(cycles: number): void {
-    // Still advance sample clock when powered off (silence)
-    this.sampleAccum += cycles;
-    if (this.nr52 & 0x80) {
-      this.frameCounter += cycles;
-      while (this.frameCounter >= 8192) {
-        this.frameCounter -= 8192;
-        this.clockFrameSeq();
-      }
-    }
-
-    while (this.sampleAccum >= CYCLES_PER_SAMPLE) {
-      this.sampleAccum -= CYCLES_PER_SAMPLE;
-      if (this.soundEnabled) this.pushSample(this.mixSample());
-    }
-  }
-
+  // Clock the frame sequence
   private clockFrameSeq(): void {
     if ((this.frameSeq & 1) === 0) {
       this.lengthTick(this.ch1, IO.NR14);
@@ -346,12 +416,14 @@ export class Apu {
     this.frameSeq = (this.frameSeq + 1) & 7;
   }
 
+  // Tick the length of a pulse channel
   private lengthTick(ch: Pulse, nrX4: number): void {
     if (ch.enabled && (this.regs[nrX4 - IO.NR10]! & 0x40) && ch.length > 0) {
       if (--ch.length === 0) ch.enabled = false;
     }
   }
 
+  // Tick the envelope of a pulse channel
   private envTick(ch: { enabled: boolean; vol: number; envPeriod: number; envTimer: number; envDir: number }): void {
     if (!ch.enabled || ch.envPeriod === 0) return;
     if (--ch.envTimer <= 0) {
@@ -361,6 +433,7 @@ export class Apu {
     }
   }
 
+  // Tick the sweep of a pulse channel
   private sweepTick(): void {
     if (!this.ch1.enabled) return;
     if (this.ch1.sweepPeriod === 0 && this.ch1.sweepShift === 0) return;
@@ -373,22 +446,25 @@ export class Apu {
           this.ch1.enabled = false;
         } else if (this.ch1.sweepShift > 0) {
           this.ch1.sweepShadow = next;
-          this.ch1.freq = next;
+          this.setPulseFreq(this.ch1, next);
         }
       }
     }
   }
 
+  // Calculate the frequency of a pulse channel
   private hzPulse(period: number): number {
     if (period >= 2047) return 0;
     return 131072 / (2048 - period);
   }
 
+  // Calculate the frequency of a wave channel
   private hzWave(period: number): number {
     if (period >= 2047) return 0;
     return 65536 / (2048 - period);
   }
 
+  // Mix a sample
   private mixSample(): number {
     if (!(this.nr52 & 0x80)) return 0;
 
@@ -397,26 +473,23 @@ export class Apu {
     const leftVol = ((this.nr50 >> 4) & 7) + 1;
     const rightVol = (this.nr50 & 7) + 1;
 
-    // CH1 pulse — phase advance at sample rate
+    // CH1 pulse
     if (this.ch1.enabled && this.ch1.dac) {
-      const hz = this.hzPulse(this.ch1.freq);
-      this.ch1.phase = (this.ch1.phase + hz / SAMPLE_RATE) % 1;
+      this.ch1.phase = (this.ch1.phase + this.ch1.phaseInc) % 1;
       const raw = this.ch1.phase < DUTY_THRESH[this.ch1.duty]! ? this.ch1.vol : 0;
       const s = (raw * 2 - this.ch1.vol) / 15;
       if (this.nr51 & 0x10) left += s;
       if (this.nr51 & 0x01) right += s;
     }
     if (this.ch2.enabled && this.ch2.dac) {
-      const hz = this.hzPulse(this.ch2.freq);
-      this.ch2.phase = (this.ch2.phase + hz / SAMPLE_RATE) % 1;
+      this.ch2.phase = (this.ch2.phase + this.ch2.phaseInc) % 1;
       const raw = this.ch2.phase < DUTY_THRESH[this.ch2.duty]! ? this.ch2.vol : 0;
       const s = (raw * 2 - this.ch2.vol) / 15;
       if (this.nr51 & 0x20) left += s;
       if (this.nr51 & 0x02) right += s;
     }
     if (this.ch3.enabled && this.ch3.dac) {
-      const hz = this.hzWave(this.ch3.freq);
-      this.ch3.phase = (this.ch3.phase + hz / SAMPLE_RATE) % 1;
+      this.ch3.phase = (this.ch3.phase + this.ch3.phaseInc) % 1;
       const idx = Math.floor(this.ch3.phase * 32) & 31;
       const byte = this.ch3.wave[idx >> 1]!;
       let nibble = idx & 1 ? byte & 0xf : byte >> 4;
@@ -446,17 +519,14 @@ export class Apu {
     return (left + right) * 0.5;
   }
 
-  /** Drop pending audio samples (call after savestate load / reload). */
-  clearAudioBuffer(): void {
-    this.clearBuffer();
-  }
-
+  // Clear the audio buffer
   private clearBuffer(): void {
     this.bufRead = 0;
     this.bufWrite = 0;
     this.bufCount = 0;
   }
 
+  // Push a sample to the audio buffer
   private pushSample(s: number): void {
     if (this.bufCount >= MAX_BUF) {
       // Drop oldest to avoid unbounded latency / echo
@@ -468,41 +538,12 @@ export class Apu {
     this.bufCount++;
   }
 
+  // Pop a sample from the audio buffer
   private popSample(): number {
     if (this.bufCount === 0) return 0;
     const s = this.sampleBuf[this.bufRead]!;
     this.bufRead = (this.bufRead + 1) % MAX_BUF;
     this.bufCount--;
     return s;
-  }
-
-  exportState(): Uint8Array {
-    const buf = new Uint8Array(72);
-    buf.set(this.regs.subarray(0, 48), 0);
-    buf[48] = this.nr52;
-    buf[49] = this.nr50;
-    buf[50] = this.nr51;
-    buf[51] = this.frameSeq;
-    buf[52] = this.ch1.enabled ? 1 : 0;
-    buf[53] = this.ch2.enabled ? 1 : 0;
-    buf[54] = this.ch3.enabled ? 1 : 0;
-    buf[55] = this.ch4.enabled ? 1 : 0;
-    buf.set(this.ch3.wave, 56);
-    return buf;
-  }
-
-  importState(data: Uint8Array, offset = 0): number {
-    this.regs.set(data.subarray(offset, offset + 48));
-    this.nr52 = data[offset + 48]!;
-    this.nr50 = data[offset + 49]!;
-    this.nr51 = data[offset + 50]!;
-    this.frameSeq = data[offset + 51]!;
-    this.ch1.enabled = data[offset + 52]! !== 0;
-    this.ch2.enabled = data[offset + 53]! !== 0;
-    this.ch3.enabled = data[offset + 54]! !== 0;
-    this.ch4.enabled = data[offset + 55]! !== 0;
-    this.ch3.wave.set(data.subarray(offset + 56, offset + 72));
-    this.clearBuffer();
-    return 72;
   }
 }
