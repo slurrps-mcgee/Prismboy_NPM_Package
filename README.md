@@ -1,4 +1,4 @@
-# @slurrps/PrismBoy
+# @slurrps/prismboy
 
 A Game Boy / Game Boy Color emulator written in TypeScript with **no runtime dependencies**.
 
@@ -7,13 +7,13 @@ The package owns screen painting, scaling, sound, keyboard, on-screen pad, and g
 ## Install
 
 ```bash
-npm install @slurrps/PrismBoy
+npm install @slurrps/prismboy
 ```
 
 ## Quick start
 
 ```ts
-import { GameBoy, Button } from "@slurrps/PrismBoy";
+import { GameBoy, Button } from "@slurrps/prismboy";
 
 const gb = new GameBoy({ autoSave: true });
 gb.attachScreen(document.querySelector("canvas")!, { scale: 3, mode: "integer" });
@@ -309,7 +309,7 @@ import {
   VirtualPadMapping,
   DMG_BOOT,
   CGB_BOOT,
-} from "@slurrps/PrismBoy";
+} from "@slurrps/prismboy";
 ```
 
 Types: `Cartridge`, `CartridgeInfo`, `ScaleMode`, `ScreenOptions`, `GamepadButtonMap`, `DmgPalette`, `Rgba`, `GameBoyEvents`, debug snapshot types.

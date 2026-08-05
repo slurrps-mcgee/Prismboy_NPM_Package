@@ -1,4 +1,4 @@
-# @slurrps/PrismBoy — Internal Documentation
+# @slurrps/prismboy — Internal Documentation
 
 Thorough reference for developing, debugging, and extending the Game Boy / Game Boy Color emulator.  
 For consumer-facing install/API notes, see [`README.md`](./README.md).
@@ -31,7 +31,7 @@ For consumer-facing install/API notes, see [`README.md`](./README.md).
 
 ## 1. Overview
 
-`@slurrps/PrismBoy` is a **zero-runtime-dependency** TypeScript emulator that:
+`@slurrps/prismboy` is a **zero-runtime-dependency** TypeScript emulator that:
 
 - Emulates DMG (monochrome) and CGB (color) hardware
 - Renders to a host-owned canvas (package paints via `attachScreen`)
@@ -109,7 +109,7 @@ GBC/
 
 Workflow: [`.github/workflows/npm.yml`](.github/workflows/npm.yml) (`workflow_dispatch`). Auth uses **npm Trusted Publishing (OIDC)** — no `NPM_TOKEN` / OTP.
 
-One-time setup on [npmjs.com package settings](https://www.npmjs.com/package/@slurrps/PrismBoy) → **Trusted Publisher**:
+One-time setup on [npmjs.com package settings](https://www.npmjs.com/package/@slurrps/prismboy) → **Trusted Publisher**:
 
 | Field | Value |
 |-------|--------|
