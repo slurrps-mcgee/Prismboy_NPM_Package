@@ -77,16 +77,13 @@ header p {
 }
 
 .gamepad-status {
-  position: absolute;
-  bottom: 12px;
-  left: 16px;
+  margin-top: 0.5rem;
   font-size: 0.7rem;
   color: var(--muted);
-  max-width: 70%;
+  min-height: 1em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  pointer-events: none;
 }
 
 .controls,

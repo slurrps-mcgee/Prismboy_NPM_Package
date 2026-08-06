@@ -666,27 +666,27 @@ LocalStorage key: `gbc-sav:${romName}` (base64; legacy JSON array still accepted
 
 ### Implemented well enough for Crystal-class games
 
-- SM83 CPU + interrupts + HALT bug path
-- CGB double-speed with correct LCD/APU rate split
+- SM83 CPU + interrupts, HALT bug, EI delay (haltBug in savestate v2)
+- CGB double-speed with correct LCD/APU rate split (`lcdPhase` in savestate)
 - HDMA (GP + HBlank) with abort/read semantics
 - CGB BG attributes, palettes, VRAM/WRAM banking
 - Window line counter + WY reset
-- MBC1 / MBC3+RTC / MBC5 + battery saves
-- Basic APU with correct pitch at 44.1 kHz
+- MBC0 / MBC1 / MBC2 / MBC3(+RTC) / MBC5 / MMM01 / HuC (+ battery where applicable)
+- DIV falling-edge TIMA + DIV/TAC quirks
+- Cycle-timed OAM DMA; DMG VRAM/OAM mode locks; Mode 3 length varies with sprites/SCX
+- APU channel FSM + AudioWorklet (ScriptProcessor fallback); deeper APU savestate
 
 ### Known limitations (when hunting bugs)
 
 | Area | Current behavior | Impact |
 |------|------------------|--------|
-| OAM DMA | Instant copy, no bus lock | Rare mid-frame sprite glitches |
-| Mode 3 length | Fixed 172 dots | Some mid-scanline effects |
-| Timer | No full DIV-edge TIMA quirks | Mooneye timer tests may fail |
-| Serial / IR | Stubbed / unused | Link cable / IR games |
-| VRAM/OAM locking | Not enforced by mode | Games that rely on open-bus garbage |
-| APU savestate | Shallow (regs, not phases) | Brief audio discontinuity after load |
-| `lcdPhase` / `haltBug` | Not in savestate | Extremely edge-case desync after load |
-| Audio node | `ScriptProcessorNode` | Deprecated; fine for demo, consider AudioWorklet later |
-| MBC2 / MMM01 / HuC | Not implemented | Those carts won't run |
+| Serial / IR | Stubbed / unused (out of scope) | Link cable / IR games |
+| Mode 3 / locking | Improved (sprite/SCX Mode 3 length; DMG locks; CGB VRAM open) | Extreme mid-scanline / obscure CGB edge cases may still differ |
+| Timer | DIV falling-edge TIMA + DIV/TAC quirks | Prefer Mooneye fixtures under `tests/fixtures/roms/mooneye/` for full suite |
+| OAM DMA | Cycle-timed (1 byte / 4 T) with OAM CPU lock | Rare conflict semantics vs hardware |
+| APU | Stronger channel FSM + AudioWorklet (ScriptProcessor fallback) | Not every Blargg sound case |
+| Extra MBCs | MBC2 / MMM01 / HuC1–3 wired | MMM01/HuC are MBC1-like approximations |
+| Audio node | AudioWorklet preferred; ScriptProcessor fallback | Older browsers / Node tests |
 
 ---
 

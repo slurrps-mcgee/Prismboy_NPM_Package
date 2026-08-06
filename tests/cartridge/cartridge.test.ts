@@ -48,4 +48,26 @@ describe("Cartridge / saves", () => {
     expect(out.rtc?.m).toBe(20);
     expect(out.rtc?.lastUnixMs).toBe(1_700_000_000_000);
   });
+
+  test("MBC2 ROM banking and nibble RAM", () => {
+    const rom = makeRom(0x05, 0x00, 0x10000);
+    rom[0x4000] = 0xaa;
+    rom[0x8000] = 0xbb;
+    const cart = createCartridge(rom);
+    expect(cart.info.ramSize).toBe(0x200);
+    expect(cart.read(0x4000)).toBe(0xaa);
+    // ROM bank write: address bit 8 set (e.g. 0x2100)
+    cart.write(0x2100, 0x02);
+    expect(cart.read(0x4000)).toBe(0xbb);
+    // RAM enable: bit 8 clear
+    cart.write(0x0000, 0x0a);
+    cart.write(0xa000, 0x5d);
+    expect(cart.read(0xa000) & 0x0f).toBe(0x0d);
+  });
+
+  test("MMM01 and HuC map to banking carts", () => {
+    expect(createCartridge(makeRom(0x0b, 0x00, 0x10000)).info.type).toBe(0x0b);
+    expect(createCartridge(makeRom(0xff, 0x02)).info.type).toBe(0xff);
+    expect(createCartridge(makeRom(0xfe, 0x02)).info.type).toBe(0xfe);
+  });
 });

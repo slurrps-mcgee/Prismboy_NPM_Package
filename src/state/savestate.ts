@@ -1,7 +1,8 @@
 import type { GameBoy } from "../gameboy";
 
 const MAGIC = new TextEncoder().encode("GBCST");
-const VERSION = 1;
+/** v2: deeper CPU/APU/DMA/lcdPhase savestate fields. */
+const VERSION = 2;
 
 // Concatenate the parts
 function concat(parts: Uint8Array[]): Uint8Array {
@@ -49,7 +50,8 @@ export function loadSavestate(gb: GameBoy, data: Uint8Array): void {
   for (let i = 0; i < 5; i++) {
     if (data[i] !== MAGIC[i]) throw new Error("Invalid savestate magic");
   }
-  if (data[5] !== VERSION) throw new Error(`Unsupported savestate version ${data[5]}`);
+  const ver = data[5]!;
+  if (ver !== 1 && ver !== 2) throw new Error(`Unsupported savestate version ${ver}`);
 
   let o = 6;
   let r: { chunk: Uint8Array; next: number };

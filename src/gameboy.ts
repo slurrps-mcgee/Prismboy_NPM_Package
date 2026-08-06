@@ -84,8 +84,6 @@ export class GameBoy {
   private romId = "rom";
   private saveDirty = false;
   private saveFlushTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Carry bit when mapping CPU T-cycles → LCD dots in double-speed mode. */
-  private lcdPhase = 0;
   private screenAttached = false;
   private muted = false;
   /** Temporary mute while host speed > 1 (does not change user mute preference). */
@@ -487,7 +485,7 @@ export class GameBoy {
     this.ppu.reset();
     this.screen.clear();
     this.cyclesThisFrame = 0;
-    this.lcdPhase = 0;
+    this.bus.lcdPhase = 0;
     if (this.fpsEl) this.fpsEl.textContent = "FPS: —";
   }
 
@@ -513,7 +511,7 @@ export class GameBoy {
     this.joypad.reset();
     this.apu.reset();
     this.cyclesThisFrame = 0;
-    this.lcdPhase = 0;
+    this.bus.lcdPhase = 0;
     this.events.emit("reset");
   }
 
@@ -967,11 +965,12 @@ export class GameBoy {
   // Advance the peripherals
   private advancePeripherals(cpuCycles: number): boolean {
     this.timer.tick(cpuCycles);
+    this.bus.tickDma(cpuCycles);
     let lcdDots = cpuCycles;
     if (this.bus.doubleSpeed) {
-      const total = cpuCycles + this.lcdPhase;
+      const total = cpuCycles + this.bus.lcdPhase;
       lcdDots = total >> 1;
-      this.lcdPhase = total & 1;
+      this.bus.lcdPhase = total & 1;
     }
     this.apu.tick(lcdDots);
     return this.ppu.tick(lcdDots);

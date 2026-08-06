@@ -57,10 +57,13 @@ export function parseHeader(rom: Uint8Array): CartridgeInfo {
   const romSize = romBanks * 0x4000;
 
   const ramSizes = [0, 0x800, 0x2000, 0x8000, 0x20000, 0x10000];
-  const ramSize = ramSizes[ramSizeCode] ?? 0;
+  let ramSize = ramSizes[ramSizeCode] ?? 0;
 
-  const hasBattery = [0x03, 0x06, 0x09, 0x0d, 0x0f, 0x10, 0x13, 0x1b, 0x1e].includes(type);
+  const hasBattery = [0x03, 0x06, 0x09, 0x0d, 0x0f, 0x10, 0x13, 0x1b, 0x1e, 0xff].includes(type);
   const hasRtc = [0x0f, 0x10].includes(type);
+
+  // MBC2 has built-in 512×4-bit RAM regardless of header RAM size code
+  if (type === 0x05 || type === 0x06) ramSize = 0x200;
 
   return { title: title.trim(), type, romSize, ramSize, cgbFlag, hasBattery, hasRtc };
 }
@@ -491,14 +494,103 @@ class Mbc5 extends MbcBase {
   }
 }
 
+// MBC2: 512×4-bit built-in RAM; ROM bank via A8=1 writes; RAM enable via A8=0.
+class Mbc2 extends MbcBase {
+  private romBank = 1;
+  private ramEnable = false;
+
+  reset(): void {
+    this.romBank = 1;
+    this.ramEnable = false;
+  }
+
+  read(addr: number): number {
+    if (addr < 0x4000) return this.rom[addr] ?? 0xff;
+    if (addr < 0x8000) {
+      const max = Math.max(1, this.rom.length / 0x4000);
+      const b = (this.romBank || 1) % max;
+      return this.rom[b * 0x4000 + (addr - 0x4000)] ?? 0xff;
+    }
+    if (addr >= 0xa000 && addr < 0xa200 && this.ramEnable && this.sram.length) {
+      // Only lower nibble is valid
+      return (this.sram[addr - 0xa000]! & 0x0f) | 0xf0;
+    }
+    return 0xff;
+  }
+
+  write(addr: number, value: number): void {
+    if (addr < 0x4000) {
+      if (addr & 0x100) {
+        // Bit 8 set → ROM bank (low 4 bits); 0 maps to 1
+        this.romBank = value & 0x0f;
+        if (this.romBank === 0) this.romBank = 1;
+      } else {
+        // Bit 8 clear → RAM enable
+        this.ramEnable = (value & 0x0f) === 0x0a;
+      }
+      return;
+    }
+    if (addr >= 0xa000 && addr < 0xa200 && this.ramEnable && this.sram.length) {
+      this.sram[addr - 0xa000] = value & 0x0f;
+      this.notifySram();
+    }
+  }
+
+  override exportState(): Uint8Array {
+    const base = super.exportState();
+    const extra = new Uint8Array(2);
+    extra[0] = this.romBank;
+    extra[1] = this.ramEnable ? 1 : 0;
+    const out = new Uint8Array(base.length + 2);
+    out.set(base);
+    out.set(extra, base.length);
+    return out;
+  }
+
+  override importState(data: Uint8Array, offset = 0): number {
+    const n = super.importState(data, offset);
+    this.romBank = data[offset + n] ?? 1;
+    this.ramEnable = (data[offset + n + 1] ?? 0) !== 0;
+    return n + 2;
+  }
+}
+
+/**
+ * MMM01 (types 0x0B–0x0D): uncommon mapper. Implemented as MBC1-like fallback.
+ * Real MMM01 has a more complex multiplexed banking scheme used by few titles.
+ */
+class Mmm01 extends Mbc1 {}
+
+/**
+ * HuC1 (0xFF) / HuC3 (0xFE): treat like MBC1.
+ * HuC1 IR port writes are ignored; HuC3 RTC/IR not emulated beyond MBC1 banking.
+ */
+class HuC1 extends Mbc1 {
+  override write(addr: number, value: number): void {
+    // HuC1 IR enable lives in the RAM-bank register range — ignore IR side effects
+    if (addr >= 0x4000 && addr < 0x6000) {
+      // Still accept bank bits like MBC1; IR mode bit is a no-op here
+      super.write(addr, value & 0x03);
+      return;
+    }
+    super.write(addr, value);
+  }
+}
+
+class HuC3 extends Mbc1 {}
+
 // Create a cartridge
 export function createCartridge(rom: Uint8Array): Cartridge {
   const info = parseHeader(rom);
   const t = info.type;
   if (t === 0x00 || t === 0x08 || t === 0x09) return new Mbc0(rom, info);
   if (t >= 0x01 && t <= 0x03) return new Mbc1(rom, info);
+  if (t === 0x05 || t === 0x06) return new Mbc2(rom, info);
+  if (t >= 0x0b && t <= 0x0d) return new Mmm01(rom, info);
   if ((t >= 0x0f && t <= 0x13) || t === 0x10) return new Mbc3(rom, info);
   if (t >= 0x19 && t <= 0x1e) return new Mbc5(rom, info);
+  if (t === 0xff) return new HuC1(rom, info);
+  if (t === 0xfe) return new HuC3(rom, info);
   // Fallback: try MBC1 for unknown types
   if (rom.length > 0x8000) return new Mbc1(rom, info);
   return new Mbc0(rom, info);

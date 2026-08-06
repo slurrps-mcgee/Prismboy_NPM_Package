@@ -35,6 +35,8 @@ export class Ppu {
   private bgLineColors = new Uint8Array(SCREEN_WIDTH);
   /** Host-overridable DMG shade colors (RGBA). */
   private dmgPalette: DmgPalette = cloneDefaultPalette();
+  /** Variable Mode 3 length for the current scanline (dots). */
+  private mode3Length = 172;
 
   constructor(private bus: Bus) {
     // ImageData requires a browser-like env; provide a transferable buffer
@@ -63,6 +65,7 @@ export class Ppu {
     this.obp1 = 0xff;
     this.windowLine = 0;
     this.frameReady = false;
+    this.mode3Length = 172;
     // Clear to DMG white so reload/boot doesn't show stale frames
     const [r, g, b, a] = this.dmgPalette[0]!;
     for (let i = 0; i < this.frameBuffer.data.length; i += 4) {
@@ -151,13 +154,18 @@ export class Ppu {
     this.frameReady = false;
     let remaining = cycles;
     while (remaining > 0) {
+      // Recalc Mode 3 length at the start of OAM search (dots === 0)
+      if (this.dots === 0 && this.ly < VBLANK_START) {
+        this.mode3Length = this.calcMode3Length();
+      }
+
       const step = Math.min(remaining, DOTS_PER_LINE - this.dots);
       this.dots += step;
       remaining -= step;
 
       if (this.ly < VBLANK_START) {
         if (this.dots < 80) this.setMode(PPU_MODE.OAM);
-        else if (this.dots < 80 + 172) this.setMode(PPU_MODE.TRANSFER);
+        else if (this.dots < 80 + this.mode3Length) this.setMode(PPU_MODE.TRANSFER);
         else this.setMode(PPU_MODE.HBLANK);
       } else {
         this.setMode(PPU_MODE.VBLANK);
@@ -203,6 +211,7 @@ export class Ppu {
     buf[12] = this.obp0;
     buf[13] = this.obp1;
     buf[14] = this.windowLine;
+    buf[15] = this.mode3Length;
     buf.set(this.frameBuffer.data, 32);
     return buf;
   }
@@ -224,11 +233,35 @@ export class Ppu {
     this.obp0 = data[offset + 12]!;
     this.obp1 = data[offset + 13]!;
     this.windowLine = data[offset + 14]!;
+    this.mode3Length = data[offset + 15] ?? 172;
     this.frameBuffer.data.set(data.subarray(offset + 32, offset + 32 + this.frameBuffer.data.length));
     return 32 + this.frameBuffer.data.length;
   }
 
   // ── Private ─────────────────────────────────────────────────────────────
+
+  /**
+   * Mode 3 length ≈ 172 + sprites×6 + (SCX%8). Cap so HBlank still exists
+   * (mode 0 must start before dot 456).
+   */
+  private calcMode3Length(): number {
+    let sprites = 0;
+    if (this.lcdc & LCDC.OBJ_ENABLE) {
+      const tall = (this.lcdc & LCDC.OBJ_SIZE) !== 0;
+      const height = tall ? 16 : 8;
+      for (let i = 0; i < 40; i++) {
+        const oy = this.bus.oam[i * 4]! - 16;
+        if (this.ly >= oy && this.ly < oy + height) {
+          sprites++;
+          if (sprites >= 10) break;
+        }
+      }
+    }
+    const scxPenalty = this.scx & 7;
+    // Leave at least 1 dot of HBlank (mode 0 starts before 456)
+    const maxMode3 = DOTS_PER_LINE - 80 - 1;
+    return Math.min(172 + sprites * 6 + scxPenalty, maxMode3);
+  }
 
   // Sync from the bus
   private syncFromBus(): void {

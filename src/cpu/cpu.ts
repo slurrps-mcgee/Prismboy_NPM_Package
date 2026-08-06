@@ -32,7 +32,7 @@ export class CPU {
     }
 
     const interruptCycles = this.handleInterrupts();
-    if (interruptCycles > 0) return interruptCycles;
+    if (interruptCycles > 0) return interruptCycles + this.bus.takeAccessPenalty();
 
     if (this.stopped) return 4;
 
@@ -49,7 +49,8 @@ export class CPU {
       this.registers.pc = (this.registers.pc - 1) & 0xffff;
       this.haltBug = false;
     }
-    return executeOpcode(this, opcode);
+    const cycles = executeOpcode(this, opcode);
+    return cycles + this.bus.takeAccessPenalty();
   }
 
   // Fetch a byte from the memory
@@ -415,12 +416,13 @@ export class CPU {
   // Export the state of the CPU
   exportState(): Uint8Array {
     const regs = this.registers.exportState();
-    const meta = new Uint8Array(4);
+    const meta = new Uint8Array(5);
     meta[0] = this.ime ? 1 : 0;
     meta[1] = this.imeScheduled ? 1 : 0;
     meta[2] = this.halted ? 1 : 0;
     meta[3] = this.stopped ? 1 : 0;
-    const out = new Uint8Array(regs.length + 4);
+    meta[4] = this.haltBug ? 1 : 0;
+    const out = new Uint8Array(regs.length + 5);
     out.set(regs);
     out.set(meta, regs.length);
     return out;
@@ -433,7 +435,10 @@ export class CPU {
     this.imeScheduled = data[offset + n + 1]! !== 0;
     this.halted = data[offset + n + 2]! !== 0;
     this.stopped = data[offset + n + 3]! !== 0;
-    return n + 4;
+    // haltBug is the 5th meta byte (absent in older 4-byte meta blobs)
+    const remaining = data.length - offset - n;
+    this.haltBug = remaining > 4 && data[offset + n + 4]! !== 0;
+    return n + (remaining >= 5 ? 5 : 4);
   }
 
   // ── Private ─────────────────────────────────────────────────────────────
