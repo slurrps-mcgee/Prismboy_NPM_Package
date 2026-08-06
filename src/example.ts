@@ -196,6 +196,13 @@ overlayToggle.onchange = () => {
   }
 };
 
+const fpsToggle = $<HTMLInputElement>("fps-toggle");
+fpsToggle.onchange = () => {
+  fpsEl.hidden = !fpsToggle.checked;
+  logEvent(fpsToggle.checked ? "FPS overlay ON" : "FPS overlay OFF");
+};
+fpsEl.hidden = !fpsToggle.checked;
+
 // ── Status ────────────────────────────────────────────────────────────────
 
 $("refresh-status").onclick = () => refreshStatus();
