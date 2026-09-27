@@ -41,8 +41,12 @@ export class Joypad {
   // Detach the joypad from the keyboard
   detachKeyboard(): void {
     if (!this.keyTarget) return;
-    this.keyTarget.removeEventListener("keydown", this.onKeyDown, { capture: true } as EventListenerOptions);
-    this.keyTarget.removeEventListener("keyup", this.onKeyUp, { capture: true } as EventListenerOptions);
+    this.keyTarget.removeEventListener("keydown", this.onKeyDown, {
+      capture: true,
+    } as EventListenerOptions);
+    this.keyTarget.removeEventListener("keyup", this.onKeyUp, {
+      capture: true,
+    } as EventListenerOptions);
     this.keyTarget = null;
   }
 

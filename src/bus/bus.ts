@@ -255,7 +255,7 @@ export class Bus {
   }
 
   requestInterrupt(bit: number): void {
-    this.io[IO.IF - 0xff00] = (this.io[IO.IF - 0xff00]! | bit) | 0xe0;
+    this.io[IO.IF - 0xff00] = this.io[IO.IF - 0xff00]! | bit | 0xe0;
   }
 
   getIf(): number {
@@ -362,12 +362,12 @@ export class Bus {
   // ── Private ─────────────────────────────────────────────────────────────
 
   private lcdEnabled(): boolean {
-    const lcdc = this.ppu ? (this.io[IO.LCDC - 0xff00]! | 0) : this.io[IO.LCDC - 0xff00]!;
+    const lcdc = this.ppu ? this.io[IO.LCDC - 0xff00]! | 0 : this.io[IO.LCDC - 0xff00]!;
     return (lcdc & LCDC.LCD_ENABLE) !== 0;
   }
 
   private ppuMode(): number {
-    return this.ppu?.mode ?? (this.io[IO.STAT - 0xff00]! & 3);
+    return this.ppu?.mode ?? this.io[IO.STAT - 0xff00]! & 3;
   }
 
   /**
@@ -418,11 +418,11 @@ export class Bus {
       case IO.STAT:
         return this.ppu?.readStat() ?? this.io[addr - 0xff00]!;
       case IO.VBK:
-        return this.cgbMode ? (0xfe | this.vramBank) : 0xff;
+        return this.cgbMode ? 0xfe | this.vramBank : 0xff;
       case IO.SVBK:
-        return this.cgbMode ? (0xf8 | this.wramBank) : 0xff;
+        return this.cgbMode ? 0xf8 | this.wramBank : 0xff;
       case IO.KEY1:
-        return this.cgbMode ? ((this.key1 & 0x7f) | (this.doubleSpeed ? 0x80 : 0)) : 0xff;
+        return this.cgbMode ? (this.key1 & 0x7f) | (this.doubleSpeed ? 0x80 : 0) : 0xff;
       case IO.BCPS:
         return this.bcps;
       case IO.BCPD:
@@ -436,7 +436,8 @@ export class Bus {
         if (this.hdmaActive) return this.io[IO.HDMA5 - 0xff00]! & 0x7f;
         return this.io[IO.HDMA5 - 0xff00]!;
       default:
-        if (addr >= IO.NR10 && addr <= 0xff3f) return this.apu?.read(addr) ?? this.io[addr - 0xff00]!;
+        if (addr >= IO.NR10 && addr <= 0xff3f)
+          return this.apu?.read(addr) ?? this.io[addr - 0xff00]!;
         return this.io[addr - 0xff00]!;
     }
   }

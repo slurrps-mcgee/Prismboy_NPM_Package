@@ -56,12 +56,24 @@ export function loadSavestate(gb: GameBoy, data: Uint8Array): void {
   let o = 6;
   let r: { chunk: Uint8Array; next: number };
 
-  r = readChunk(data, o); gb.cpu.importState(r.chunk); o = r.next;
-  r = readChunk(data, o); gb.bus.importState(r.chunk); o = r.next;
-  r = readChunk(data, o); gb.ppu.importState(r.chunk); o = r.next;
-  r = readChunk(data, o); gb.timer.importState(r.chunk); o = r.next;
-  r = readChunk(data, o); gb.joypad.importState(r.chunk); o = r.next;
-  r = readChunk(data, o); gb.apu.importState(r.chunk); o = r.next;
+  r = readChunk(data, o);
+  gb.cpu.importState(r.chunk);
+  o = r.next;
+  r = readChunk(data, o);
+  gb.bus.importState(r.chunk);
+  o = r.next;
+  r = readChunk(data, o);
+  gb.ppu.importState(r.chunk);
+  o = r.next;
+  r = readChunk(data, o);
+  gb.timer.importState(r.chunk);
+  o = r.next;
+  r = readChunk(data, o);
+  gb.joypad.importState(r.chunk);
+  o = r.next;
+  r = readChunk(data, o);
+  gb.apu.importState(r.chunk);
+  o = r.next;
   r = readChunk(data, o);
   if (gb.bus.cartridge && r.chunk.length) gb.bus.cartridge.importState(r.chunk);
 }

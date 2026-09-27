@@ -86,12 +86,14 @@ GBC/
 
 ## 3. Build, demo, and tests
 
-| Command | What it does |
-|---------|----------------|
-| `npm run dev` | Vite demo at `index.html` → `src/example.ts` |
-| `npm run build` | Webpack ESM library → `dist/gameboy.js` |
-| `npm test` | Jest (`node --experimental-vm-modules`) |
-| `npm run test:watch` | Jest watch mode |
+| Command                           | What it does                                             |
+| --------------------------------- | -------------------------------------------------------- |
+| `npm run dev`                     | Vite demo at `index.html` → `src/example.ts`             |
+| `npm run build`                   | Webpack ESM library → `dist/gameboy.js`                  |
+| `npm test`                        | Jest (`node --experimental-vm-modules`)                  |
+| `npm run test:watch`              | Jest watch mode                                          |
+| `npm run format` / `format:check` | Prettier write / CI check                                |
+| `npm run verify`                  | Format check, tests, library build, `npm pack --dry-run` |
 
 **Package exports** (`package.json`):
 
@@ -107,19 +109,19 @@ GBC/
 
 ### Publishing to npm
 
-Workflow: [`.github/workflows/npm.yml`](.github/workflows/npm.yml) (`workflow_dispatch`). Auth uses **npm Trusted Publishing (OIDC)** — no `NPM_TOKEN` / OTP.
+Workflow: [`.github/workflows/npm.yml`](.github/workflows/npm.yml) runs on every push to `main` (a merged pull request). Auth uses **npm Trusted Publishing (OIDC)** — no `NPM_TOKEN` / OTP. If that `package.json` version is already on the registry, publish is skipped.
 
 One-time setup on [npmjs.com package settings](https://www.npmjs.com/package/@slurrps/prismboy) → **Trusted Publisher**:
 
-| Field | Value |
-|-------|--------|
-| Provider | GitHub Actions |
-| Organization / user | `slurrps-mcgee` |
-| Repository | `Prismboy_NPM_Package` |
-| Workflow filename | `npm.yml` |
-| Environment | *(empty)* |
+| Field               | Value                  |
+| ------------------- | ---------------------- |
+| Provider            | GitHub Actions         |
+| Organization / user | `slurrps-mcgee`        |
+| Repository          | `Prismboy_NPM_Package` |
+| Workflow filename   | `npm.yml`              |
+| Environment         | _(empty)_              |
 
-Allow **`npm publish`**. Bump `package.json` `version` before re-running the workflow if that version is already on the registry.
+Allow **`npm publish`**. Bump `package.json` `version` in the pull request; the merge to `main` publishes that version. CI (`.github/workflows/ci.yml`) runs on pull requests into `main` and is the check to require before merge.
 
 ---
 
@@ -218,14 +220,14 @@ Game Boy Color **double-speed mode** is the #1 source of Pokémon Crystal graphi
 
 ### 6.1 Hardware rules ([Pan Docs — KEY1](https://gbdev.io/pandocs/CGB_Registers.html))
 
-| Subsystem | Double-speed behavior |
-|-----------|------------------------|
-| CPU | 2× |
-| Timer / DIV | 2× |
-| Serial / OAM DMA | 2× |
-| **LCD (PPU)** | **1× (unchanged)** |
-| **HDMA block wall-time** | **unchanged** |
-| **Sound timings** | **1×** |
+| Subsystem                | Double-speed behavior |
+| ------------------------ | --------------------- |
+| CPU                      | 2×                    |
+| Timer / DIV              | 2×                    |
+| Serial / OAM DMA         | 2×                    |
+| **LCD (PPU)**            | **1× (unchanged)**    |
+| **HDMA block wall-time** | **unchanged**         |
+| **Sound timings**        | **1×**                |
 
 ### 6.2 How this emulator maps it
 
@@ -233,9 +235,9 @@ CPU opcodes return **T-cycles** (4× M-cycles), same numeric style as normal-spe
 
 ```ts
 // GameBoy.advancePeripherals
-timer.tick(cpuCycles);           // full rate — matches CPU
+timer.tick(cpuCycles); // full rate — matches CPU
 lcdDots = doubleSpeed
-  ? (cpuCycles + lcdPhase) >> 1  // half rate — matches LCD / APU
+  ? (cpuCycles + lcdPhase) >> 1 // half rate — matches LCD / APU
   : cpuCycles;
 lcdPhase = doubleSpeed ? (cpuCycles + lcdPhase) & 1 : 0;
 apu.tick(lcdDots);
@@ -255,13 +257,13 @@ ppu.tick(lcdDots);
 
 ### 6.4 Machine constants
 
-| Constant | Value | Meaning |
-|----------|-------|---------|
-| `CPU_HZ` | 4 194 304 | Normal-speed T-cycle rate |
-| `CYCLES_PER_FRAME` | 70 224 | LCD dots per frame (= CPU T-cycles/frame in normal speed) |
-| `DOTS_PER_LINE` | 456 | Dots per scanline |
-| `LINES_PER_FRAME` | 154 | 144 visible + 10 VBlank |
-| `VBLANK_START` | 144 | First VBlank LY |
+| Constant           | Value     | Meaning                                                   |
+| ------------------ | --------- | --------------------------------------------------------- |
+| `CPU_HZ`           | 4 194 304 | Normal-speed T-cycle rate                                 |
+| `CYCLES_PER_FRAME` | 70 224    | LCD dots per frame (= CPU T-cycles/frame in normal speed) |
+| `DOTS_PER_LINE`    | 456       | Dots per scanline                                         |
+| `LINES_PER_FRAME`  | 154       | 144 visible + 10 VBlank                                   |
+| `VBLANK_START`     | 144       | First VBlank LY                                           |
 
 ---
 
@@ -269,50 +271,50 @@ ppu.tick(lcdDots);
 
 All 16-bit addressing goes through `Bus` (`src/bus/bus.ts`).
 
-| Range | Mapping |
-|-------|---------|
-| `0000–00FF` | Boot ROM (if enabled) else cart ROM |
+| Range       | Mapping                                           |
+| ----------- | ------------------------------------------------- |
+| `0000–00FF` | Boot ROM (if enabled) else cart ROM               |
 | `0100–01FF` | **Always cartridge** (header visible during boot) |
-| `0200–08FF` | CGB boot ROM extension (if enabled) else cart |
-| `0900–7FFF` | Cart ROM (banked via MBC) |
-| `8000–9FFF` | VRAM bank selected by `VBK` (`vram[0\|1]`) |
-| `A000–BFFF` | Cart external RAM / MBC3 RTC registers |
-| `C000–CFFF` | WRAM bank 0 |
-| `D000–DFFF` | WRAM bank `SVBK` (1–7; write 0 → bank 1) |
-| `E000–FDFF` | Echo RAM → WRAM − `0x2000` |
-| `FE00–FE9F` | OAM (40 sprites × 4 bytes) |
-| `FEA0–FEFF` | Unusable → reads `0xFF` |
-| `FF00–FF7F` | Memory-mapped IO |
-| `FF80–FFFE` | HRAM |
-| `FFFF` | IE (interrupt enable) |
+| `0200–08FF` | CGB boot ROM extension (if enabled) else cart     |
+| `0900–7FFF` | Cart ROM (banked via MBC)                         |
+| `8000–9FFF` | VRAM bank selected by `VBK` (`vram[0\|1]`)        |
+| `A000–BFFF` | Cart external RAM / MBC3 RTC registers            |
+| `C000–CFFF` | WRAM bank 0                                       |
+| `D000–DFFF` | WRAM bank `SVBK` (1–7; write 0 → bank 1)          |
+| `E000–FDFF` | Echo RAM → WRAM − `0x2000`                        |
+| `FE00–FE9F` | OAM (40 sprites × 4 bytes)                        |
+| `FEA0–FEFF` | Unusable → reads `0xFF`                           |
+| `FF00–FF7F` | Memory-mapped IO                                  |
+| `FF80–FFFE` | HRAM                                              |
+| `FFFF`      | IE (interrupt enable)                             |
 
 ### 7.1 Notable IO routing
 
-| Register | Handler |
-|----------|---------|
-| `FF00` P1 | Joypad |
-| `FF04–FF07` | Timer (DIV/TIMA/TMA/TAC) |
-| `FF0F` IF | Interrupt flags (bus) |
-| `FF10–FF3F` | APU (+ wave RAM) |
+| Register    | Handler                                       |
+| ----------- | --------------------------------------------- |
+| `FF00` P1   | Joypad                                        |
+| `FF04–FF07` | Timer (DIV/TIMA/TMA/TAC)                      |
+| `FF0F` IF   | Interrupt flags (bus)                         |
+| `FF10–FF3F` | APU (+ wave RAM)                              |
 | `FF40–FF4B` | PPU (LCDC, STAT, scroll, LY, palettes, WY/WX) |
-| `FF46` DMA | Instant OAM DMA (160 bytes) |
-| `FF4D` KEY1 | Speed prepare / status |
-| `FF4F` VBK | VRAM bank |
-| `FF50` | Boot ROM unmap (any non-zero) |
-| `FF51–FF55` | HDMA source/dest/length |
-| `FF68–FF6B` | CGB BG/OBJ palette index + data |
-| `FF70` SVBK | WRAM bank |
+| `FF46` DMA  | Instant OAM DMA (160 bytes)                   |
+| `FF4D` KEY1 | Speed prepare / status                        |
+| `FF4F` VBK  | VRAM bank                                     |
+| `FF50`      | Boot ROM unmap (any non-zero)                 |
+| `FF51–FF55` | HDMA source/dest/length                       |
+| `FF68–FF6B` | CGB BG/OBJ palette index + data               |
+| `FF70` SVBK | WRAM bank                                     |
 
 ### 7.2 HDMA / VRAM DMA (CGB)
 
 Pokémon Crystal depends on this. Implemented in `Bus.startHdma` / `Bus.tickHdma`.
 
-| Mode | Trigger | Behavior |
-|------|---------|----------|
-| General-purpose (HDMA5 bit7=0) | Write HDMA5 | Copy entire length **immediately** into current VBK |
-| HBlank DMA (bit7=1) | Write HDMA5 | Transfer **16 bytes** each time PPU **enters HBlank** on LY 0–143 |
-| Abort | Write HDMA5 with bit7=0 while active | Stop; read returns `0x80 \| (remainingBlocks−1)` |
-| Complete | Natural finish / overflow | HDMA5 reads as `$FF` |
+| Mode                           | Trigger                              | Behavior                                                          |
+| ------------------------------ | ------------------------------------ | ----------------------------------------------------------------- |
+| General-purpose (HDMA5 bit7=0) | Write HDMA5                          | Copy entire length **immediately** into current VBK               |
+| HBlank DMA (bit7=1)            | Write HDMA5                          | Transfer **16 bytes** each time PPU **enters HBlank** on LY 0–143 |
+| Abort                          | Write HDMA5 with bit7=0 while active | Stop; read returns `0x80 \| (remainingBlocks−1)`                  |
+| Complete                       | Natural finish / overflow            | HDMA5 reads as `$FF`                                              |
 
 Source address low nibble forced to 0; dest limited to VRAM (`0x8000–0x9FF0` encoding). Destination overflow ends the transfer early.
 
@@ -331,18 +333,18 @@ Write to `FF46` copies 160 bytes from `page<<8` into OAM **immediately**.
 
 **Role:** Public facade, subsystem wiring, rAF run loop, save debounce, timing split, host attach APIs.
 
-| Member | Notes |
-|--------|-------|
-| `bus`, `cpu`, `ppu`, `timer`, `joypad`, `apu`, `screen` | Readonly owned instances |
-| `attachScreen(canvas, opts?)` | Bind canvas; **auto-paint** each frame; scale modes |
-| `setScale` / `setScaleMode` / `toggleFullscreen` | Display sizing |
-| `enableSound` / `mute` / `unMute` / `setVolume` | Sound (also via `apu`) |
-| `loadRom(rom)`, `reload()`, `quit()`, `reset()`, `run()`, `pause()`, `step()` | Lifecycle |
-| `hasRom()` | Whether a ROM is loaded |
-| `onFrameFinished(cb)` | Optional; FPS overlays (paint already done if screen attached) |
-| `setUseBootRom` / `setBootRom` | Boot ROM policy |
-| `getSave` / `loadSave` / `onSaveRamUpdated` / `hasBatterySave` | Battery `.sav` |
-| `createState` / `loadState` | Full savestate |
+| Member                                                                        | Notes                                                          |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `bus`, `cpu`, `ppu`, `timer`, `joypad`, `apu`, `screen`                       | Readonly owned instances                                       |
+| `attachScreen(canvas, opts?)`                                                 | Bind canvas; **auto-paint** each frame; scale modes            |
+| `setScale` / `setScaleMode` / `toggleFullscreen`                              | Display sizing                                                 |
+| `enableSound` / `mute` / `unMute` / `setVolume`                               | Sound (also via `apu`)                                         |
+| `loadRom(rom)`, `reload()`, `quit()`, `reset()`, `run()`, `pause()`, `step()` | Lifecycle                                                      |
+| `hasRom()`                                                                    | Whether a ROM is loaded                                        |
+| `onFrameFinished(cb)`                                                         | Optional; FPS overlays (paint already done if screen attached) |
+| `setUseBootRom` / `setBootRom`                                                | Boot ROM policy                                                |
+| `getSave` / `loadSave` / `onSaveRamUpdated` / `hasBatterySave`                | Battery `.sav`                                                 |
+| `createState` / `loadState`                                                   | Full savestate                                                 |
 
 **`quit()`:** pause, blank screen, unload ROM (`romBytes` + cartridge), reset joypad pressed state, mute/clear audio. Input attachments remain.
 
@@ -357,18 +359,18 @@ CSS/layout scaler over a fixed 160×144 canvas buffer. Modes: `integer`, `fit`, 
 
 **Role:** Address decode, IO, banking, DMA/HDMA, IF, boot overlay, CGB palettes.
 
-| Field | Meaning |
-|-------|---------|
-| `vram[0\|1]` | 8 KiB × 2 |
-| `wram[0…7]` | 4 KiB × 8 |
-| `oam`, `hram`, `io`, `ie` | Sprite RAM, high RAM, IO mirror, IE |
-| `vramBank`, `wramBank` | Current banks |
-| `cgbMode`, `doubleSpeed`, `key1` | Mode flags |
-| `bgPalette`, `objPalette` | 64-byte CGB palette RAM each |
-| `hdmaSrc`, `hdmaDst`, `hdmaLength`, `hdmaActive` | VRAM DMA state |
-| `bootRom`, `bootRomEnabled` | Boot overlay |
-| `onSramWrite` | Hook → GameBoy save debounce |
-| `cartridge` | Active MBC |
+| Field                                            | Meaning                             |
+| ------------------------------------------------ | ----------------------------------- |
+| `vram[0\|1]`                                     | 8 KiB × 2                           |
+| `wram[0…7]`                                      | 4 KiB × 8                           |
+| `oam`, `hram`, `io`, `ie`                        | Sprite RAM, high RAM, IO mirror, IE |
+| `vramBank`, `wramBank`                           | Current banks                       |
+| `cgbMode`, `doubleSpeed`, `key1`                 | Mode flags                          |
+| `bgPalette`, `objPalette`                        | 64-byte CGB palette RAM each        |
+| `hdmaSrc`, `hdmaDst`, `hdmaLength`, `hdmaActive` | VRAM DMA state                      |
+| `bootRom`, `bootRomEnabled`                      | Boot overlay                        |
+| `onSramWrite`                                    | Hook → GameBoy save debounce        |
+| `cartridge`                                      | Active MBC                          |
 
 **Key methods:** `read` / `write`, `reset`, `setBootRom`, `loadCartridge`, `tickHdma`, `requestInterrupt`, `exportState` / `importState`.
 
@@ -385,13 +387,13 @@ Opcode bodies live in:
 - `src/cpu/opcodes/opcodes.ts` — main SM83 (`executeOpcode`)
 - `src/cpu/opcodes/cbOpcodes.ts` — CB prefix (`executeCb`)
 
-| State | Meaning |
-|-------|---------|
-| `registers` | `Registers` instance |
-| `ime` | Interrupt master enable |
-| `imeScheduled` | EI delay (takes effect after next instruction) |
-| `halted` / `stopped` | Low-power / STOP |
-| `haltBug` | HALT bug when IRQ pending with IME=0 |
+| State                | Meaning                                        |
+| -------------------- | ---------------------------------------------- |
+| `registers`          | `Registers` instance                           |
+| `ime`                | Interrupt master enable                        |
+| `imeScheduled`       | EI delay (takes effect after next instruction) |
+| `halted` / `stopped` | Low-power / STOP                               |
+| `haltBug`            | HALT bug when IRQ pending with IME=0           |
 
 **`step()` return value:** T-cycles consumed (including interrupt entry = 20).
 
@@ -420,23 +422,23 @@ Related files:
 
 **Role:** Dot-based scanline PPU; DMG greyscale + CGB color; sprites; window; STAT/VBlank IRQs; HDMA trigger.
 
-| Property | Notes |
-|----------|-------|
-| `width` / `height` | 160 / 144 |
-| `frameBuffer` | `ImageData` (or shim in Node tests) |
-| `ly`, `mode` | Current line / PPU mode |
-| `tick(cycles)` | Advances dots; returns `true` when a frame completes |
-| `writeLcdc` / `writeStat` / `readStat` | LCD control |
-| `onWyWrite()` | Reset internal window line counter |
+| Property                               | Notes                                                |
+| -------------------------------------- | ---------------------------------------------------- |
+| `width` / `height`                     | 160 / 144                                            |
+| `frameBuffer`                          | `ImageData` (or shim in Node tests)                  |
+| `ly`, `mode`                           | Current line / PPU mode                              |
+| `tick(cycles)`                         | Advances dots; returns `true` when a frame completes |
+| `writeLcdc` / `writeStat` / `readStat` | LCD control                                          |
+| `onWyWrite()`                          | Reset internal window line counter                   |
 
 **Mode timing (fixed split, LY < 144):**
 
-| Mode | Dot range | Value |
-|------|-----------|-------|
-| OAM search | 0–79 | 2 |
-| Pixel transfer | 80–251 | 3 |
-| HBlank | 252–455 | 0 |
-| VBlank | LY ≥ 144 | 1 |
+| Mode           | Dot range | Value |
+| -------------- | --------- | ----- |
+| OAM search     | 0–79      | 2     |
+| Pixel transfer | 80–251    | 3     |
+| HBlank         | 252–455   | 0     |
+| VBlank         | LY ≥ 144  | 1     |
 
 **Rendering pipeline per visible line** (`renderScanline`):
 
@@ -466,13 +468,13 @@ BG/window/sprite rendering is inlined in `ppu.ts`.
 
 **Role:** Four channels (2 pulse, wave, noise) with phase oscillators sampled at **44 100 Hz**.
 
-| API | Notes |
-|-----|-------|
-| `enableSound()` | Creates `AudioContext` + `ScriptProcessorNode` (idempotent; call after user gesture) |
-| `mute` / `unMute` / `setVolume` | Host controls |
-| `tick(cycles)` | Advance with **LCD-rate** cycles (half in double-speed) |
-| `read` / `write` | NR10–NR52 + wave RAM |
-| `clearAudioBuffer()` | Called on savestate load to avoid glitches |
+| API                             | Notes                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------ |
+| `enableSound()`                 | Creates `AudioContext` + `ScriptProcessorNode` (idempotent; call after user gesture) |
+| `mute` / `unMute` / `setVolume` | Host controls                                                                        |
+| `tick(cycles)`                  | Advance with **LCD-rate** cycles (half in double-speed)                              |
+| `read` / `write`                | NR10–NR52 + wave RAM                                                                 |
+| `clearAudioBuffer()`            | Called on savestate load to avoid glitches                                           |
 
 Mixing uses NR50/NR51. Ring buffer drops oldest samples if the audio callback falls behind.
 
@@ -497,15 +499,15 @@ Channel state lives inside `Apu` (`src/apu/apu.ts`).
 
 **Role:** `P1` (`FF00`) + keyboard / virtual pad / gamepad.
 
-| API | Notes |
-|-----|-------|
-| `attachKeyboard` / `detachKeyboard` | Capture-phase listeners on window (or element) |
-| `attachVirtualPad(root)` | Bind `[data-btn]` via `virtualPad.ts` (pointer capture) |
-| `attachGamepad` / `detachGamepad` | Gamepad API detect + rAF poll (`gamepad.ts`) |
-| `onGamepadConnected` / `onGamepadDisconnected` | Optional UI hooks |
-| `setKeyMapping` / `setGamepadMap` | Remap inputs |
-| `triggerButton(button, pressed)` | Manual / digital pad |
-| `readP1` / `writeP1` | Bus IO |
+| API                                            | Notes                                                   |
+| ---------------------------------------------- | ------------------------------------------------------- |
+| `attachKeyboard` / `detachKeyboard`            | Capture-phase listeners on window (or element)          |
+| `attachVirtualPad(root)`                       | Bind `[data-btn]` via `virtualPad.ts` (pointer capture) |
+| `attachGamepad` / `detachGamepad`              | Gamepad API detect + rAF poll (`gamepad.ts`)            |
+| `onGamepadConnected` / `onGamepadDisconnected` | Optional UI hooks                                       |
+| `setKeyMapping` / `setGamepadMap`              | Remap inputs                                            |
+| `triggerButton(button, pressed)`               | Manual / digital pad                                    |
+| `readP1` / `writeP1`                           | Bus IO                                                  |
 
 **Defaults:** Arrows = D-pad, Z=A, X=B, Enter=Start, Shift=Select (`constants/joypad.constants.ts`).
 
@@ -519,13 +521,13 @@ Channel state lives inside `Apu` (`src/apu/apu.ts`).
 
 **`createCartridge` type map:**
 
-| Header `0x147` | Backend |
-|----------------|---------|
-| `0x00`, `0x08`, `0x09` | MBC0 (ROM only / RAM) |
-| `0x01`–`0x03` | MBC1 |
-| `0x0F`–`0x13` | MBC3 (+ RTC for `0x0F`/`0x10`) |
-| `0x19`–`0x1E` | MBC5 |
-| other | Heuristic fallback |
+| Header `0x147`         | Backend                        |
+| ---------------------- | ------------------------------ |
+| `0x00`, `0x08`, `0x09` | MBC0 (ROM only / RAM)          |
+| `0x01`–`0x03`          | MBC1                           |
+| `0x0F`–`0x13`          | MBC3 (+ RTC for `0x0F`/`0x10`) |
+| `0x19`–`0x1E`          | MBC5                           |
+| other                  | Heuristic fallback             |
 
 **RTC:** Advances from wall-clock (`Date.now()` / `lastUnixMs`). Latch protocol 0→1. Halt bit in `dh`.
 
@@ -575,11 +577,11 @@ then length-prefixed chunks (u32 LE length + bytes), in order:
 
 ### 8.12 Boot — `src/boot/`
 
-| File | Contents |
-|------|----------|
+| File                           | Contents                                     |
+| ------------------------------ | -------------------------------------------- |
 | `dmg_boot.bin` / `dmg_boot.ts` | SameBoy DMG boot (256 bytes) as `Uint8Array` |
-| `cgb_boot.bin` / `cgb_boot.ts` | SameBoy CGB boot (2304 bytes) |
-| `index.ts` | `selectBootRom(cgb)`, re-exports |
+| `cgb_boot.bin` / `cgb_boot.ts` | SameBoy CGB boot (2304 bytes)                |
+| `index.ts`                     | `selectBootRom(cgb)`, re-exports             |
 
 Licensed Expat/MIT — safe to redistribute. Official Nintendo dumps are **not**.
 
@@ -593,13 +595,13 @@ Convenience re-exports (`Button`, cartridge types) and an `ExportableState` inte
 
 ## 9. Constants
 
-| File | Contents |
-|------|----------|
-| `constants/memory.constants.ts` | Screen/timing, memory bounds, full `IO` map, `INT` bits + vectors, `BOOT_ROM_DISABLE` |
-| `constants/cpu.constants.ts` | `FLAG_Z/N/H/C`, post-boot register presets |
-| `constants/ppu.constants.ts` | `LCDC`, `STAT`, `PPU_MODE`, `DMG_COLORS` |
-| `constants/joypad.constants.ts` | `Button` enum, default keyboard map |
-| `constants/interrupt.constants.ts` | Re-exports interrupt constants |
+| File                               | Contents                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------- |
+| `constants/memory.constants.ts`    | Screen/timing, memory bounds, full `IO` map, `INT` bits + vectors, `BOOT_ROM_DISABLE` |
+| `constants/cpu.constants.ts`       | `FLAG_Z/N/H/C`, post-boot register presets                                            |
+| `constants/ppu.constants.ts`       | `LCDC`, `STAT`, `PPU_MODE`, `DMG_COLORS`                                              |
+| `constants/joypad.constants.ts`    | `Button` enum, default keyboard map                                                   |
+| `constants/interrupt.constants.ts` | Re-exports interrupt constants                                                        |
 
 When adding a new IO register, update **`IO` in `memory.constants.ts`** and the Bus `readIo` / `writeIo` switches together.
 
@@ -609,10 +611,10 @@ When adding a new IO register, update **`IO` in `memory.constants.ts`** and the 
 
 ### Two different persistence mechanisms
 
-| Kind | Format | API | Use case |
-|------|--------|-----|----------|
+| Kind         | Format  | API                                         | Use case               |
+| ------------ | ------- | ------------------------------------------- | ---------------------- |
 | Battery save | `GBCSV` | `getSave` / `loadSave` / `onSaveRamUpdated` | In-game SAVE (Pokémon) |
-| Savestate | `GBCST` | `createState` / `loadState` | Instant mid-run resume |
+| Savestate    | `GBCST` | `createState` / `loadState`                 | Instant mid-run resume |
 
 ### Save debounce (why audio used to glitch)
 
@@ -678,15 +680,15 @@ LocalStorage key: `gbc-sav:${romName}` (base64; legacy JSON array still accepted
 
 ### Known limitations (when hunting bugs)
 
-| Area | Current behavior | Impact |
-|------|------------------|--------|
-| Serial / IR | Stubbed / unused (out of scope) | Link cable / IR games |
-| Mode 3 / locking | Improved (sprite/SCX Mode 3 length; DMG locks; CGB VRAM open) | Extreme mid-scanline / obscure CGB edge cases may still differ |
-| Timer | DIV falling-edge TIMA + DIV/TAC quirks | Prefer Mooneye fixtures under `tests/fixtures/roms/mooneye/` for full suite |
-| OAM DMA | Cycle-timed (1 byte / 4 T) with OAM CPU lock | Rare conflict semantics vs hardware |
-| APU | Stronger channel FSM + AudioWorklet (ScriptProcessor fallback) | Not every Blargg sound case |
-| Extra MBCs | MBC2 / MMM01 / HuC1–3 wired | MMM01/HuC are MBC1-like approximations |
-| Audio node | AudioWorklet preferred; ScriptProcessor fallback | Older browsers / Node tests |
+| Area             | Current behavior                                               | Impact                                                                      |
+| ---------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Serial / IR      | Stubbed / unused (out of scope)                                | Link cable / IR games                                                       |
+| Mode 3 / locking | Improved (sprite/SCX Mode 3 length; DMG locks; CGB VRAM open)  | Extreme mid-scanline / obscure CGB edge cases may still differ              |
+| Timer            | DIV falling-edge TIMA + DIV/TAC quirks                         | Prefer Mooneye fixtures under `tests/fixtures/roms/mooneye/` for full suite |
+| OAM DMA          | Cycle-timed (1 byte / 4 T) with OAM CPU lock                   | Rare conflict semantics vs hardware                                         |
+| APU              | Stronger channel FSM + AudioWorklet (ScriptProcessor fallback) | Not every Blargg sound case                                                 |
+| Extra MBCs       | MBC2 / MMM01 / HuC1–3 wired                                    | MMM01/HuC are MBC1-like approximations                                      |
+| Audio node       | AudioWorklet preferred; ScriptProcessor fallback               | Older browsers / Node tests                                                 |
 
 ---
 
@@ -720,16 +722,16 @@ LocalStorage key: `gbc-sav:${romName}` (base64; legacy JSON array still accepted
 ### Useful inspection points
 
 ```ts
-gb.cpu.registers.pc
-gb.cpu.ime
-gb.bus.doubleSpeed
-gb.bus.hdmaActive
-gb.ppu.ly
-gb.ppu.mode          // 0 HBlank, 1 VBlank, 2 OAM, 3 Transfer
-gb.bus.read(0xff40)  // LCDC
-gb.bus.read(0xff55)  // HDMA5
-gb.bus.vram[0]       // tile data / maps
-gb.bus.vram[1]       // CGB attributes
+gb.cpu.registers.pc;
+gb.cpu.ime;
+gb.bus.doubleSpeed;
+gb.bus.hdmaActive;
+gb.ppu.ly;
+gb.ppu.mode; // 0 HBlank, 1 VBlank, 2 OAM, 3 Transfer
+gb.bus.read(0xff40); // LCDC
+gb.bus.read(0xff55); // HDMA5
+gb.bus.vram[0]; // tile data / maps
+gb.bus.vram[1]; // CGB attributes
 ```
 
 ### Minimal CPU harness
@@ -775,15 +777,15 @@ Bump `VERSION` in `saveData.ts` / `savestate.ts` and keep backward readers when 
 
 Documenting these prevents regressions when editing timing or graphics code.
 
-| Symptom | Root cause | Fix location |
-|---------|------------|--------------|
-| Audio pitched too low | Samples generated at ~CPU rate, played at 44.1 kHz | `apu.ts` phase oscillators @ 44100; `CYCLES_PER_SAMPLE = CPU_HZ/44100` |
-| Audio glitches on save | Sync `JSON.stringify` of 32 KB on hot path | Debounced `onSaveRamUpdated` + async demo persist |
-| Double button presses | Key repeat + pointer + IRQ on every P1 write | Ignore repeats/duplicates; IRQ only on visible press edge |
-| `^` / quote tiles / battle garbage in Crystal | PPU ran 1:1 with CPU in double-speed → HDMA desync | `GameBoy.advancePeripherals` half-rate LCD dots |
-| Dialogue / menu tile flash | Window line counter wrong (incremented when not drawing; no WY reset) | `windowVisible`, increment-on-draw, `onWyWrite` |
-| Wall should be black, shows `"` | Stale font tiles left in VRAM after failed HDMA | HDMA rewrite + double-speed fix |
-| Sprite priority / stray battle pixels | Missing claimed-pixel mask / 8×16 Y-flip order | `renderSpritesCgb` |
+| Symptom                                       | Root cause                                                            | Fix location                                                           |
+| --------------------------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Audio pitched too low                         | Samples generated at ~CPU rate, played at 44.1 kHz                    | `apu.ts` phase oscillators @ 44100; `CYCLES_PER_SAMPLE = CPU_HZ/44100` |
+| Audio glitches on save                        | Sync `JSON.stringify` of 32 KB on hot path                            | Debounced `onSaveRamUpdated` + async demo persist                      |
+| Double button presses                         | Key repeat + pointer + IRQ on every P1 write                          | Ignore repeats/duplicates; IRQ only on visible press edge              |
+| `^` / quote tiles / battle garbage in Crystal | PPU ran 1:1 with CPU in double-speed → HDMA desync                    | `GameBoy.advancePeripherals` half-rate LCD dots                        |
+| Dialogue / menu tile flash                    | Window line counter wrong (incremented when not drawing; no WY reset) | `windowVisible`, increment-on-draw, `onWyWrite`                        |
+| Wall should be black, shows `"`               | Stale font tiles left in VRAM after failed HDMA                       | HDMA rewrite + double-speed fix                                        |
+| Sprite priority / stray battle pixels         | Missing claimed-pixel mask / 8×16 Y-flip order                        | `renderSpritesCgb`                                                     |
 
 ---
 

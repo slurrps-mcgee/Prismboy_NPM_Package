@@ -153,9 +153,17 @@ abstract class MbcBase implements Cartridge {
       const o = 8 + this.sram.length;
       const r = this.rtc;
       const vals = [
-        r.s, r.m, r.h, r.dl, r.dh,
+        r.s,
+        r.m,
+        r.h,
+        r.dl,
+        r.dh,
         r.latched ? 1 : 0,
-        r.latchS, r.latchM, r.latchH, r.latchDl, r.latchDh,
+        r.latchS,
+        r.latchM,
+        r.latchH,
+        r.latchDl,
+        r.latchDh,
       ];
       for (let i = 0; i < vals.length; i++) buf[o + i] = vals[i]! & 0xff;
       view.setFloat64(o + 16, r.lastUnixMs, true);
@@ -344,14 +352,25 @@ class Mbc3 extends MbcBase {
       if (this.rtc && this.ramBank >= 0x08 && this.ramBank <= 0x0c) {
         tickRtc(this.rtc);
         const r = this.rtc.latched
-          ? { s: this.rtc.latchS, m: this.rtc.latchM, h: this.rtc.latchH, dl: this.rtc.latchDl, dh: this.rtc.latchDh }
+          ? {
+              s: this.rtc.latchS,
+              m: this.rtc.latchM,
+              h: this.rtc.latchH,
+              dl: this.rtc.latchDl,
+              dh: this.rtc.latchDh,
+            }
           : this.rtc;
         switch (this.ramBank) {
-          case 0x08: return r.s;
-          case 0x09: return r.m;
-          case 0x0a: return r.h;
-          case 0x0b: return r.dl;
-          case 0x0c: return r.dh;
+          case 0x08:
+            return r.s;
+          case 0x09:
+            return r.m;
+          case 0x0a:
+            return r.h;
+          case 0x0b:
+            return r.dl;
+          case 0x0c:
+            return r.dh;
         }
       }
     }
@@ -386,11 +405,21 @@ class Mbc3 extends MbcBase {
       } else if (this.rtc && this.ramBank >= 0x08 && this.ramBank <= 0x0c) {
         tickRtc(this.rtc);
         switch (this.ramBank) {
-          case 0x08: this.rtc.s = value % 60; break;
-          case 0x09: this.rtc.m = value % 60; break;
-          case 0x0a: this.rtc.h = value % 24; break;
-          case 0x0b: this.rtc.dl = value; break;
-          case 0x0c: this.rtc.dh = value; break;
+          case 0x08:
+            this.rtc.s = value % 60;
+            break;
+          case 0x09:
+            this.rtc.m = value % 60;
+            break;
+          case 0x0a:
+            this.rtc.h = value % 24;
+            break;
+          case 0x0b:
+            this.rtc.dl = value;
+            break;
+          case 0x0c:
+            this.rtc.dh = value;
+            break;
         }
         this.notifySram();
       }

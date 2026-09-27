@@ -94,7 +94,6 @@ function wireEmulator(emu: GameBoy): void {
 
 let gb = createEmulator();
 
-
 function logEvent(msg: string): void {
   const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
   eventLogEl.textContent = `${line}\n${eventLogEl.textContent ?? ""}`.slice(0, 4000);
@@ -128,7 +127,8 @@ function refreshStatus(): void {
   $("mute-state").textContent = `isMuted: ${gb.isMuted()}`;
   $("volume-label").textContent = String(gb.getVolume());
   $("scale-state").textContent = `getScale: ${gb.getScale()} · getScaleMode: ${gb.getScaleMode()}`;
-  $("fb-info").textContent = `${gb.getWidth()}×${gb.getHeight()} · framebuffer ${gb.getFrameBuffer().data.length} bytes`;
+  $("fb-info").textContent =
+    `${gb.getWidth()}×${gb.getHeight()} · framebuffer ${gb.getFrameBuffer().data.length} bytes`;
   updateButtonState();
 }
 
@@ -149,7 +149,10 @@ function dumpDebug(label: string): void {
     `PPU LY=${ppu.ly} mode=${ppu.mode} LCDC=${ppu.lcdc.toString(16)} STAT=${ppu.stat.toString(16)} SCX=${ppu.scx} SCY=${ppu.scy}`,
     `Timer DIV=${timer.div} TIMA=${timer.tima} TMA=${timer.tma} TAC=${timer.tac}`,
     `IRQ IE=${irq.ie.toString(16)} IF=${irq.if.toString(16)} imeScheduled=${irq.imeScheduled}`,
-    `Breakpoints: [${gb.getBreakpoints().map((a) => "$" + a.toString(16)).join(", ")}]`,
+    `Breakpoints: [${gb
+      .getBreakpoints()
+      .map((a) => "$" + a.toString(16))
+      .join(", ")}]`,
     "Disasm:",
     ...lines.map((l) => `  $${l.address.toString(16).padStart(4, "0")}: ${l.mnemonic}`),
   ].join("\n");
@@ -653,7 +656,12 @@ $("bp-clear").onclick = () => {
 };
 
 $("bp-list").onclick = () => {
-  logEvent(`getBreakpoints() → [${gb.getBreakpoints().map((a) => "0x" + a.toString(16)).join(", ")}]`);
+  logEvent(
+    `getBreakpoints() → [${gb
+      .getBreakpoints()
+      .map((a) => "0x" + a.toString(16))
+      .join(", ")}]`
+  );
   dumpDebug("getBreakpoints()");
 };
 
@@ -681,7 +689,10 @@ $("disasm").onclick = () => {
   const pc = gb.getCpuRegisters().pc;
   const lines = gb.disassemble(pc, 8);
   debugEl.textContent = lines
-    .map((l) => `$${l.address.toString(16).padStart(4, "0")}: ${l.bytes.map((b) => b.toString(16).padStart(2, "0")).join(" ")}  ${l.mnemonic}`)
+    .map(
+      (l) =>
+        `$${l.address.toString(16).padStart(4, "0")}: ${l.bytes.map((b) => b.toString(16).padStart(2, "0")).join(" ")}  ${l.mnemonic}`
+    )
     .join("\n");
 };
 

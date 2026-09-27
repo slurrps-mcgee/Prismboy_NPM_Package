@@ -1,4 +1,11 @@
-import { FLAG_C, FLAG_H, FLAG_N, FLAG_Z, BOOT_REGS, BOOT_REGS_CGB } from "@/constants/cpu.constants";
+import {
+  FLAG_C,
+  FLAG_H,
+  FLAG_N,
+  FLAG_Z,
+  BOOT_REGS,
+  BOOT_REGS_CGB,
+} from "@/constants/cpu.constants";
 
 /** SM83 register file: A F B C D E H L, SP, PC, and ZNHC flags. */
 export class Registers {

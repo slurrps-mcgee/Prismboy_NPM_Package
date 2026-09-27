@@ -664,7 +664,10 @@ export class GameBoy {
   }
 
   hasBatterySave(): boolean {
-    return this.bus.cartridge?.info.hasBattery === true && (this.bus.cartridge.sram.length > 0 || this.bus.cartridge.info.hasRtc);
+    return (
+      this.bus.cartridge?.info.hasBattery === true &&
+      (this.bus.cartridge.sram.length > 0 || this.bus.cartridge.info.hasRtc)
+    );
   }
 
   isSaveDirty(): boolean {
@@ -675,7 +678,14 @@ export class GameBoy {
     const cart = this.bus.cartridge;
     if (!cart || !cart.info.hasBattery) return null;
     const rtc = cart.rtc
-      ? { s: cart.rtc.s, m: cart.rtc.m, h: cart.rtc.h, dl: cart.rtc.dl, dh: cart.rtc.dh, lastUnixMs: cart.rtc.lastUnixMs }
+      ? {
+          s: cart.rtc.s,
+          m: cart.rtc.m,
+          h: cart.rtc.h,
+          dl: cart.rtc.dl,
+          dh: cart.rtc.dh,
+          lastUnixMs: cart.rtc.lastUnixMs,
+        }
       : null;
     return serializeSave(cart.sram, rtc);
   }

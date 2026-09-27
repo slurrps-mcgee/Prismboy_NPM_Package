@@ -27,7 +27,7 @@ export async function readFileBytes(file: File): Promise<Uint8Array> {
 export function downloadBytes(filename: string, data: Uint8Array): void {
   const blob = new Blob(
     [data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer],
-    { type: "application/octet-stream" },
+    { type: "application/octet-stream" }
   );
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

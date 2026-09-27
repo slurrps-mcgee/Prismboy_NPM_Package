@@ -1,6 +1,11 @@
 import { GameBoy, Button } from "@/gameboy";
 
-function makeRom(opts?: { cgb?: boolean; type?: number; ram?: number; title?: string }): Uint8Array {
+function makeRom(opts?: {
+  cgb?: boolean;
+  type?: number;
+  ram?: number;
+  title?: string;
+}): Uint8Array {
   const rom = new Uint8Array(0x8000);
   rom[0x147] = opts?.type ?? 0x00;
   rom[0x149] = opts?.ram ?? 0x00;
@@ -125,7 +130,12 @@ describe("GameBoy host API", () => {
   test("palette override and screenshot", () => {
     const gb = new GameBoy({ useBootRom: false });
     gb.loadRom(makeRom());
-    const mono: [[number, number, number, number], [number, number, number, number], [number, number, number, number], [number, number, number, number]] = [
+    const mono: [
+      [number, number, number, number],
+      [number, number, number, number],
+      [number, number, number, number],
+      [number, number, number, number],
+    ] = [
       [255, 255, 255, 255],
       [170, 170, 170, 255],
       [85, 85, 85, 255],

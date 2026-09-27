@@ -3,9 +3,17 @@ const MAGIC = new TextEncoder().encode("GBCSV");
 const VERSION = 1;
 
 // Serialize the save data
-export function serializeSave(sram: Uint8Array, rtc: {
-  s: number; m: number; h: number; dl: number; dh: number; lastUnixMs: number;
-} | null): Uint8Array {
+export function serializeSave(
+  sram: Uint8Array,
+  rtc: {
+    s: number;
+    m: number;
+    h: number;
+    dl: number;
+    dh: number;
+    lastUnixMs: number;
+  } | null
+): Uint8Array {
   const rtcSize = rtc ? 48 : 0;
   const buf = new Uint8Array(5 + 1 + 4 + sram.length + 1 + rtcSize);
   buf.set(MAGIC, 0);
