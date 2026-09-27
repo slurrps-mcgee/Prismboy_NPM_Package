@@ -90,15 +90,24 @@ export class CPU {
   getR8(i: number): number {
     const r = this.registers;
     switch (i) {
-      case 0: return r.b;
-      case 1: return r.c;
-      case 2: return r.d;
-      case 3: return r.e;
-      case 4: return r.h;
-      case 5: return r.l;
-      case 6: return this.bus.read(r.hl);
-      case 7: return r.a;
-      default: return 0;
+      case 0:
+        return r.b;
+      case 1:
+        return r.c;
+      case 2:
+        return r.d;
+      case 3:
+        return r.e;
+      case 4:
+        return r.h;
+      case 5:
+        return r.l;
+      case 6:
+        return this.bus.read(r.hl);
+      case 7:
+        return r.a;
+      default:
+        return 0;
     }
   }
 
@@ -107,14 +116,30 @@ export class CPU {
     const r = this.registers;
     v &= 0xff;
     switch (i) {
-      case 0: r.b = v; break;
-      case 1: r.c = v; break;
-      case 2: r.d = v; break;
-      case 3: r.e = v; break;
-      case 4: r.h = v; break;
-      case 5: r.l = v; break;
-      case 6: this.bus.write(r.hl, v); break;
-      case 7: r.a = v; break;
+      case 0:
+        r.b = v;
+        break;
+      case 1:
+        r.c = v;
+        break;
+      case 2:
+        r.d = v;
+        break;
+      case 3:
+        r.e = v;
+        break;
+      case 4:
+        r.h = v;
+        break;
+      case 5:
+        r.l = v;
+        break;
+      case 6:
+        this.bus.write(r.hl, v);
+        break;
+      case 7:
+        r.a = v;
+        break;
     }
   }
 
@@ -184,8 +209,8 @@ export class CPU {
     this.registers.setFlags(
       (result & 0xff) === 0,
       false,
-      ((a & 0xf) + (v & 0xf)) > 0xf,
-      result > 0xff,
+      (a & 0xf) + (v & 0xf) > 0xf,
+      result > 0xff
     );
   }
 
@@ -198,8 +223,8 @@ export class CPU {
     this.registers.setFlags(
       (result & 0xff) === 0,
       false,
-      ((a & 0xf) + (v & 0xf) + c) > 0xf,
-      result > 0xff,
+      (a & 0xf) + (v & 0xf) + c > 0xf,
+      result > 0xff
     );
   }
 
@@ -208,12 +233,7 @@ export class CPU {
     const a = this.registers.a;
     const result = a - v;
     this.registers.a = result & 0xff;
-    this.registers.setFlags(
-      (result & 0xff) === 0,
-      true,
-      (a & 0xf) < (v & 0xf),
-      result < 0,
-    );
+    this.registers.setFlags((result & 0xff) === 0, true, (a & 0xf) < (v & 0xf), result < 0);
   }
 
   // Subtract with carry
@@ -222,12 +242,7 @@ export class CPU {
     const c = this.registers.cy ? 1 : 0;
     const result = a - v - c;
     this.registers.a = result & 0xff;
-    this.registers.setFlags(
-      (result & 0xff) === 0,
-      true,
-      (a & 0xf) < (v & 0xf) + c,
-      result < 0,
-    );
+    this.registers.setFlags((result & 0xff) === 0, true, (a & 0xf) < (v & 0xf) + c, result < 0);
   }
 
   // And two bytes
@@ -252,12 +267,7 @@ export class CPU {
   cp(v: number): void {
     const a = this.registers.a;
     const result = a - v;
-    this.registers.setFlags(
-      (result & 0xff) === 0,
-      true,
-      (a & 0xf) < (v & 0xf),
-      result < 0,
-    );
+    this.registers.setFlags((result & 0xff) === 0, true, (a & 0xf) < (v & 0xf), result < 0);
   }
 
   // Add to the HL register
@@ -265,12 +275,7 @@ export class CPU {
     const hl = this.registers.hl;
     const result = hl + v;
     this.registers.hl = result & 0xffff;
-    this.registers.setFlags(
-      null,
-      false,
-      ((hl & 0xfff) + (v & 0xfff)) > 0xfff,
-      result > 0xffff,
-    );
+    this.registers.setFlags(null, false, (hl & 0xfff) + (v & 0xfff) > 0xfff, result > 0xffff);
   }
 
   // Add to the SP register
@@ -282,7 +287,7 @@ export class CPU {
       false,
       false,
       ((sp ^ n ^ result) & 0x10) !== 0,
-      ((sp ^ n ^ result) & 0x100) !== 0,
+      ((sp ^ n ^ result) & 0x100) !== 0
     );
     this.registers.sp = result;
   }

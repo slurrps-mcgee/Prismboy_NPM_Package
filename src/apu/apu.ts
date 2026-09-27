@@ -150,7 +150,10 @@ export class Apu {
   }
 
   enableSound(): void {
-    if (typeof AudioContext === "undefined" && typeof (globalThis as { webkitAudioContext?: unknown }).webkitAudioContext === "undefined") {
+    if (
+      typeof AudioContext === "undefined" &&
+      typeof (globalThis as { webkitAudioContext?: unknown }).webkitAudioContext === "undefined"
+    ) {
       this.soundEnabled = true;
       return;
     }
@@ -159,7 +162,9 @@ export class Apu {
       this.soundEnabled = true;
       return;
     }
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AC =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     this.ctx = new AC({ sampleRate: SAMPLE_RATE });
     this.gain = this.ctx.createGain();
     this.gain.gain.value = this.muted ? 0 : this.volume;
@@ -205,7 +210,10 @@ export class Apu {
     if (addr === IO.NR51) return this.nr51;
     if (addr >= 0xff30 && addr <= 0xff3f) return this.ch3.wave[addr - 0xff30]!;
     const off = addr - IO.NR10;
-    const masks = [0x80, 0x3f, 0x00, 0xff, 0xbf, 0xff, 0x3f, 0x00, 0xff, 0xbf, 0x7f, 0xff, 0x9f, 0xff, 0xbf, 0xff, 0xff, 0x00, 0x00, 0xbf];
+    const masks = [
+      0x80, 0x3f, 0x00, 0xff, 0xbf, 0xff, 0x3f, 0x00, 0xff, 0xbf, 0x7f, 0xff, 0x9f, 0xff, 0xbf,
+      0xff, 0xff, 0x00, 0x00, 0xbf,
+    ];
     return (this.regs[off] ?? 0) | (masks[off] ?? 0);
   }
 
@@ -234,8 +242,14 @@ export class Apu {
     }
     if (!(this.nr52 & 0x80)) return;
 
-    if (addr === IO.NR50) { this.nr50 = value; return; }
-    if (addr === IO.NR51) { this.nr51 = value; return; }
+    if (addr === IO.NR50) {
+      this.nr50 = value;
+      return;
+    }
+    if (addr === IO.NR51) {
+      this.nr51 = value;
+      return;
+    }
     if (addr >= 0xff30 && addr <= 0xff3f) {
       this.ch3.wave[addr - 0xff30] = value;
       return;
@@ -278,10 +292,16 @@ export class Apu {
     if (addr === IO.NR44 && value & 0x80) this.triggerCh4();
 
     if (addr === IO.NR13 || addr === IO.NR14) {
-      this.setPulseFreq(this.ch1, this.regs[IO.NR13 - IO.NR10]! | ((this.regs[IO.NR14 - IO.NR10]! & 7) << 8));
+      this.setPulseFreq(
+        this.ch1,
+        this.regs[IO.NR13 - IO.NR10]! | ((this.regs[IO.NR14 - IO.NR10]! & 7) << 8)
+      );
     }
     if (addr === IO.NR23 || addr === IO.NR24) {
-      this.setPulseFreq(this.ch2, this.regs[IO.NR23 - IO.NR10]! | ((this.regs[IO.NR24 - IO.NR10]! & 7) << 8));
+      this.setPulseFreq(
+        this.ch2,
+        this.regs[IO.NR23 - IO.NR10]! | ((this.regs[IO.NR24 - IO.NR10]! & 7) << 8)
+      );
     }
     if (addr === IO.NR33 || addr === IO.NR34) {
       this.setWaveFreq(this.regs[IO.NR33 - IO.NR10]! | ((this.regs[IO.NR34 - IO.NR10]! & 7) << 8));
@@ -375,8 +395,14 @@ export class Apu {
       this.ch3.enabled = data[offset + 54]! !== 0;
       this.ch4.enabled = data[offset + 55]! !== 0;
       this.ch3.wave.set(data.subarray(offset + 56, offset + 72));
-      this.setPulseFreq(this.ch1, this.regs[IO.NR13 - IO.NR10]! | ((this.regs[IO.NR14 - IO.NR10]! & 7) << 8));
-      this.setPulseFreq(this.ch2, this.regs[IO.NR23 - IO.NR10]! | ((this.regs[IO.NR24 - IO.NR10]! & 7) << 8));
+      this.setPulseFreq(
+        this.ch1,
+        this.regs[IO.NR13 - IO.NR10]! | ((this.regs[IO.NR14 - IO.NR10]! & 7) << 8)
+      );
+      this.setPulseFreq(
+        this.ch2,
+        this.regs[IO.NR23 - IO.NR10]! | ((this.regs[IO.NR24 - IO.NR10]! & 7) << 8)
+      );
       this.setWaveFreq(this.regs[IO.NR33 - IO.NR10]! | ((this.regs[IO.NR34 - IO.NR10]! & 7) << 8));
       this.clearBuffer();
       return 72;
@@ -491,7 +517,7 @@ export class Apu {
   private updateLengthEnable(
     ch: { length: number; lengthEnable: boolean; enabled: boolean },
     value: number,
-    _isPulse: boolean,
+    _isPulse: boolean
   ): void {
     const was = ch.lengthEnable;
     ch.lengthEnable = (value & 0x40) !== 0;
@@ -516,13 +542,13 @@ export class Apu {
     this.ch1.vol = (nr12 >> 4) & 0xf;
     this.ch1.envPeriod = nr12 & 7;
     this.ch1.envTimer = this.ch1.envPeriod || 8;
-    this.ch1.envDir = (nr12 & 8) ? 1 : -1;
+    this.ch1.envDir = nr12 & 8 ? 1 : -1;
     this.ch1.envRunning = true;
     this.setPulseFreq(this.ch1, nr13 | ((nr14 & 7) << 8));
     this.ch1.phase = 0;
     this.ch1.sweepPeriod = (nr10 >> 4) & 7;
     this.ch1.sweepShift = nr10 & 7;
-    this.ch1.sweepDir = (nr10 & 8) ? -1 : 1;
+    this.ch1.sweepDir = nr10 & 8 ? -1 : 1;
     this.ch1.sweepShadow = this.ch1.freq;
     this.ch1.sweepTimer = this.ch1.sweepPeriod || 8;
     this.ch1.sweepEnabled = this.ch1.sweepPeriod > 0 || this.ch1.sweepShift > 0;
@@ -546,7 +572,7 @@ export class Apu {
     this.ch2.vol = (nr22 >> 4) & 0xf;
     this.ch2.envPeriod = nr22 & 7;
     this.ch2.envTimer = this.ch2.envPeriod || 8;
-    this.ch2.envDir = (nr22 & 8) ? 1 : -1;
+    this.ch2.envDir = nr22 & 8 ? 1 : -1;
     this.ch2.envRunning = true;
     this.setPulseFreq(this.ch2, nr23 | ((nr24 & 7) << 8));
     this.ch2.phase = 0;
@@ -576,7 +602,7 @@ export class Apu {
     this.ch4.vol = (nr42 >> 4) & 0xf;
     this.ch4.envPeriod = nr42 & 7;
     this.ch4.envTimer = this.ch4.envPeriod || 8;
-    this.ch4.envDir = (nr42 & 8) ? 1 : -1;
+    this.ch4.envDir = nr42 & 8 ? 1 : -1;
     this.ch4.envRunning = true;
     this.ch4.divisor = [8, 16, 32, 48, 64, 80, 96, 112][nr43 & 7]!;
     this.ch4.shift = (nr43 >> 4) & 0xf;
@@ -612,7 +638,14 @@ export class Apu {
     }
   }
 
-  private envTick(ch: { enabled: boolean; vol: number; envPeriod: number; envTimer: number; envDir: number; envRunning: boolean }): void {
+  private envTick(ch: {
+    enabled: boolean;
+    vol: number;
+    envPeriod: number;
+    envTimer: number;
+    envDir: number;
+    envRunning: boolean;
+  }): void {
     if (!ch.enabled || !ch.envRunning || ch.envPeriod === 0) return;
     if (--ch.envTimer <= 0) {
       ch.envTimer = ch.envPeriod;
@@ -688,7 +721,7 @@ export class Apu {
       if (this.nr51 & 0x04) right += s;
     }
     if (this.ch4.enabled && this.ch4.dac) {
-      const period = Math.max(1, (this.ch4.divisor << this.ch4.shift) || 8);
+      const period = Math.max(1, this.ch4.divisor << this.ch4.shift || 8);
       this.ch4.phaseTimer += CYCLES_PER_SAMPLE;
       while (this.ch4.phaseTimer >= period) {
         this.ch4.phaseTimer -= period;

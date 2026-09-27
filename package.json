@@ -25,12 +25,21 @@
     "build:demo": "vite build",
     "preview": "vite preview",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "pack:check": "npm pack --dry-run",
+    "verify": "npm run format:check && npm test && npm run build && npm run pack:check",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/node": "^25.0.3",
     "jest": "^29.7.0",
+    "prettier": "^3.9.9",
     "ts-jest": "^29.2.5",
     "ts-loader": "^9.5.4",
     "typescript": "~5.9.3",

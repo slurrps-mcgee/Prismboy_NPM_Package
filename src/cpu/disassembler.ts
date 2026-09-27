@@ -21,7 +21,7 @@ function hex16(n: number): string {
 /** Decode one instruction at `addr` using a memory read callback. */
 export function disassembleAt(
   read: (addr: number) => number,
-  addr: number,
+  addr: number
 ): { size: number; mnemonic: string; bytes: number[] } {
   const a = addr & 0xffff;
   const op = read(a) & 0xff;
@@ -46,53 +46,86 @@ export function disassembleAt(
       return { size: bytes.length, mnemonic: `${CB_ROT[cb >> 3]!} ${reg}`, bytes };
     }
     if (cb < 0x80) {
-      return { size: bytes.length, mnemonic: `BIT ${ (cb >> 3) & 7 },${reg}`, bytes };
+      return { size: bytes.length, mnemonic: `BIT ${(cb >> 3) & 7},${reg}`, bytes };
     }
     if (cb < 0xc0) {
-      return { size: bytes.length, mnemonic: `RES ${ (cb >> 3) & 7 },${reg}`, bytes };
+      return { size: bytes.length, mnemonic: `RES ${(cb >> 3) & 7},${reg}`, bytes };
     }
-    return { size: bytes.length, mnemonic: `SET ${ (cb >> 3) & 7 },${reg}`, bytes };
+    return { size: bytes.length, mnemonic: `SET ${(cb >> 3) & 7},${reg}`, bytes };
   }
 
   // Sparse exact matches + patterned groups
   switch (op) {
-    case 0x00: return { size: 1, mnemonic: "NOP", bytes };
-    case 0x07: return { size: 1, mnemonic: "RLCA", bytes };
-    case 0x08: return { size: 3, mnemonic: `LD (${hex16(take16())}),SP`, bytes };
-    case 0x0f: return { size: 1, mnemonic: "RRCA", bytes };
-    case 0x10: take8(); return { size: 2, mnemonic: "STOP", bytes };
-    case 0x17: return { size: 1, mnemonic: "RLA", bytes };
+    case 0x00:
+      return { size: 1, mnemonic: "NOP", bytes };
+    case 0x07:
+      return { size: 1, mnemonic: "RLCA", bytes };
+    case 0x08:
+      return { size: 3, mnemonic: `LD (${hex16(take16())}),SP`, bytes };
+    case 0x0f:
+      return { size: 1, mnemonic: "RRCA", bytes };
+    case 0x10:
+      take8();
+      return { size: 2, mnemonic: "STOP", bytes };
+    case 0x17:
+      return { size: 1, mnemonic: "RLA", bytes };
     case 0x18: {
       const off = take8();
       const rel = (off << 24) >> 24;
       return { size: 2, mnemonic: `JR ${hex16((a + 2 + rel) & 0xffff)}`, bytes };
     }
-    case 0x1f: return { size: 1, mnemonic: "RRA", bytes };
-    case 0x22: return { size: 1, mnemonic: "LD (HL+),A", bytes };
-    case 0x27: return { size: 1, mnemonic: "DAA", bytes };
-    case 0x2a: return { size: 1, mnemonic: "LD A,(HL+)", bytes };
-    case 0x2f: return { size: 1, mnemonic: "CPL", bytes };
-    case 0x32: return { size: 1, mnemonic: "LD (HL-),A", bytes };
-    case 0x37: return { size: 1, mnemonic: "SCF", bytes };
-    case 0x3a: return { size: 1, mnemonic: "LD A,(HL-)", bytes };
-    case 0x3f: return { size: 1, mnemonic: "CCF", bytes };
-    case 0x76: return { size: 1, mnemonic: "HALT", bytes };
-    case 0xc3: return { size: 3, mnemonic: `JP ${hex16(take16())}`, bytes };
-    case 0xc9: return { size: 1, mnemonic: "RET", bytes };
-    case 0xcd: return { size: 3, mnemonic: `CALL ${hex16(take16())}`, bytes };
-    case 0xd9: return { size: 1, mnemonic: "RETI", bytes };
-    case 0xe0: return { size: 2, mnemonic: `LDH (${hex8(take8())}),A`, bytes };
-    case 0xe2: return { size: 1, mnemonic: "LD (C),A", bytes };
-    case 0xe8: return { size: 2, mnemonic: `ADD SP,${hex8(take8())}`, bytes };
-    case 0xe9: return { size: 1, mnemonic: "JP HL", bytes };
-    case 0xea: return { size: 3, mnemonic: `LD (${hex16(take16())}),A`, bytes };
-    case 0xf0: return { size: 2, mnemonic: `LDH A,(${hex8(take8())})`, bytes };
-    case 0xf2: return { size: 1, mnemonic: "LD A,(C)", bytes };
-    case 0xf3: return { size: 1, mnemonic: "DI", bytes };
-    case 0xf8: return { size: 2, mnemonic: `LD HL,SP+${hex8(take8())}`, bytes };
-    case 0xf9: return { size: 1, mnemonic: "LD SP,HL", bytes };
-    case 0xfa: return { size: 3, mnemonic: `LD A,(${hex16(take16())})`, bytes };
-    case 0xfb: return { size: 1, mnemonic: "EI", bytes };
+    case 0x1f:
+      return { size: 1, mnemonic: "RRA", bytes };
+    case 0x22:
+      return { size: 1, mnemonic: "LD (HL+),A", bytes };
+    case 0x27:
+      return { size: 1, mnemonic: "DAA", bytes };
+    case 0x2a:
+      return { size: 1, mnemonic: "LD A,(HL+)", bytes };
+    case 0x2f:
+      return { size: 1, mnemonic: "CPL", bytes };
+    case 0x32:
+      return { size: 1, mnemonic: "LD (HL-),A", bytes };
+    case 0x37:
+      return { size: 1, mnemonic: "SCF", bytes };
+    case 0x3a:
+      return { size: 1, mnemonic: "LD A,(HL-)", bytes };
+    case 0x3f:
+      return { size: 1, mnemonic: "CCF", bytes };
+    case 0x76:
+      return { size: 1, mnemonic: "HALT", bytes };
+    case 0xc3:
+      return { size: 3, mnemonic: `JP ${hex16(take16())}`, bytes };
+    case 0xc9:
+      return { size: 1, mnemonic: "RET", bytes };
+    case 0xcd:
+      return { size: 3, mnemonic: `CALL ${hex16(take16())}`, bytes };
+    case 0xd9:
+      return { size: 1, mnemonic: "RETI", bytes };
+    case 0xe0:
+      return { size: 2, mnemonic: `LDH (${hex8(take8())}),A`, bytes };
+    case 0xe2:
+      return { size: 1, mnemonic: "LD (C),A", bytes };
+    case 0xe8:
+      return { size: 2, mnemonic: `ADD SP,${hex8(take8())}`, bytes };
+    case 0xe9:
+      return { size: 1, mnemonic: "JP HL", bytes };
+    case 0xea:
+      return { size: 3, mnemonic: `LD (${hex16(take16())}),A`, bytes };
+    case 0xf0:
+      return { size: 2, mnemonic: `LDH A,(${hex8(take8())})`, bytes };
+    case 0xf2:
+      return { size: 1, mnemonic: "LD A,(C)", bytes };
+    case 0xf3:
+      return { size: 1, mnemonic: "DI", bytes };
+    case 0xf8:
+      return { size: 2, mnemonic: `LD HL,SP+${hex8(take8())}`, bytes };
+    case 0xf9:
+      return { size: 1, mnemonic: "LD SP,HL", bytes };
+    case 0xfa:
+      return { size: 3, mnemonic: `LD A,(${hex16(take16())})`, bytes };
+    case 0xfb:
+      return { size: 1, mnemonic: "EI", bytes };
     default:
       break;
   }
@@ -132,7 +165,11 @@ export function disassembleAt(
   if ((op & 0xe7) === 0x20) {
     const off = take8();
     const rel = (off << 24) >> 24;
-    return { size: 2, mnemonic: `JR ${CC[(op >> 3) & 3]!},${hex16((a + 2 + rel) & 0xffff)}`, bytes };
+    return {
+      size: 2,
+      mnemonic: `JR ${CC[(op >> 3) & 3]!},${hex16((a + 2 + rel) & 0xffff)}`,
+      bytes,
+    };
   }
 
   // LD r,r
@@ -175,7 +212,7 @@ export function disassembleAt(
 export function disassembleRange(
   read: (addr: number) => number,
   address: number,
-  count: number,
+  count: number
 ): { address: number; bytes: number[]; mnemonic: string }[] {
   const out: { address: number; bytes: number[]; mnemonic: string }[] = [];
   let pc = address & 0xffff;

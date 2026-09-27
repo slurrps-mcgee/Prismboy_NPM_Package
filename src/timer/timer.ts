@@ -38,11 +38,16 @@ export class Timer {
 
   read(addr: number): number {
     switch (addr) {
-      case IO.DIV: return this.div;
-      case IO.TIMA: return this.tima;
-      case IO.TMA: return this.tma;
-      case IO.TAC: return this.tac | 0xf8;
-      default: return 0xff;
+      case IO.DIV:
+        return this.div;
+      case IO.TIMA:
+        return this.tima;
+      case IO.TMA:
+        return this.tma;
+      case IO.TAC:
+        return this.tac | 0xf8;
+      default:
+        return 0xff;
     }
   }
 

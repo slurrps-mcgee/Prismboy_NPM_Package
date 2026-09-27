@@ -41,9 +41,10 @@ export class Ppu {
   constructor(private bus: Bus) {
     // ImageData requires a browser-like env; provide a transferable buffer
     const data = new Uint8ClampedArray(SCREEN_WIDTH * SCREEN_HEIGHT * 4);
-    this.frameBuffer = typeof ImageData !== "undefined"
-      ? new ImageData(data, SCREEN_WIDTH, SCREEN_HEIGHT)
-      : ({ data, width: SCREEN_WIDTH, height: SCREEN_HEIGHT } as ImageData);
+    this.frameBuffer =
+      typeof ImageData !== "undefined"
+        ? new ImageData(data, SCREEN_WIDTH, SCREEN_HEIGHT)
+        : ({ data, width: SCREEN_WIDTH, height: SCREEN_HEIGHT } as ImageData);
   }
 
   // ── Public ──────────────────────────────────────────────────────────────
@@ -234,7 +235,9 @@ export class Ppu {
     this.obp1 = data[offset + 13]!;
     this.windowLine = data[offset + 14]!;
     this.mode3Length = data[offset + 15] ?? 172;
-    this.frameBuffer.data.set(data.subarray(offset + 32, offset + 32 + this.frameBuffer.data.length));
+    this.frameBuffer.data.set(
+      data.subarray(offset + 32, offset + 32 + this.frameBuffer.data.length)
+    );
     return 32 + this.frameBuffer.data.length;
   }
 
@@ -290,9 +293,9 @@ export class Ppu {
     }
 
     let fire = false;
-    if (mode === PPU_MODE.HBLANK && (prev & STAT.HBLANK_INT)) fire = true;
-    if (mode === PPU_MODE.VBLANK && (prev & STAT.VBLANK_INT)) fire = true;
-    if (mode === PPU_MODE.OAM && (prev & STAT.OAM_INT)) fire = true;
+    if (mode === PPU_MODE.HBLANK && prev & STAT.HBLANK_INT) fire = true;
+    if (mode === PPU_MODE.VBLANK && prev & STAT.VBLANK_INT) fire = true;
+    if (mode === PPU_MODE.OAM && prev & STAT.OAM_INT) fire = true;
     if (fire) this.bus.requestInterrupt(INT.STAT);
   }
 
@@ -349,11 +352,7 @@ export class Ppu {
 
   // Window is visible this scanline if enabled, LY>=WY, and WX in 0..166.
   private windowVisible(): boolean {
-    return (
-      (this.lcdc & LCDC.WINDOW_ENABLE) !== 0 &&
-      this.ly >= this.wy &&
-      this.wx <= 166
-    );
+    return (this.lcdc & LCDC.WINDOW_ENABLE) !== 0 && this.ly >= this.wy && this.wx <= 166;
   }
 
   // Get the palette color
@@ -380,14 +379,12 @@ export class Ppu {
         lastCol = tileCol;
         const mapAddr = mapBase + tileRow * 32 + tileCol;
         const tile = vram[mapAddr - 0x8000]!;
-        const tileAddr = signed
-          ? 0x9000 + ((tile << 24) >> 24) * 16
-          : 0x8000 + tile * 16;
+        const tileAddr = signed ? 0x9000 + ((tile << 24) >> 24) * 16 : 0x8000 + tile * 16;
         lo = vram[tileAddr - 0x8000 + line]!;
         hi = vram[tileAddr - 0x8000 + line + 1]!;
       }
       const bit = 7 - (px & 7);
-      const colorId = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
+      const colorId = (((hi >> bit) & 1) << 1) | ((lo >> bit) & 1);
       this.bgLineColors[x] = colorId;
       this.putPixel(x, this.paletteColor(this.bgp, colorId));
     }
@@ -415,14 +412,12 @@ export class Ppu {
         lastCol = tileCol;
         const mapAddr = mapBase + tileRow * 32 + tileCol;
         const tile = vram[mapAddr - 0x8000]!;
-        const tileAddr = signed
-          ? 0x9000 + ((tile << 24) >> 24) * 16
-          : 0x8000 + tile * 16;
+        const tileAddr = signed ? 0x9000 + ((tile << 24) >> 24) * 16 : 0x8000 + tile * 16;
         lo = vram[tileAddr - 0x8000 + line]!;
         hi = vram[tileAddr - 0x8000 + line + 1]!;
       }
       const bit = 7 - (px & 7);
-      const colorId = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
+      const colorId = (((hi >> bit) & 1) << 1) | ((lo >> bit) & 1);
       this.bgLineColors[x] = colorId;
       this.putPixel(x, this.paletteColor(this.bgp, colorId));
     }
@@ -458,18 +453,22 @@ export class Ppu {
       const pal = sp.attr & 0x10 ? this.obp1 : this.obp0;
       for (let px = 0; px < 8; px++) {
         const bit = sp.attr & 0x20 ? px : 7 - px;
-        const colorId = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
+        const colorId = (((hi >> bit) & 1) << 1) | ((lo >> bit) & 1);
         if (colorId === 0) continue;
         const x = sp.x + px;
         if (x < 0 || x >= SCREEN_WIDTH) continue;
-        if ((sp.attr & 0x80) && this.bgLineColors[x]! !== 0) continue;
+        if (sp.attr & 0x80 && this.bgLineColors[x]! !== 0) continue;
         this.putPixel(x, this.paletteColor(pal, colorId));
       }
     }
   }
 
   // Get the CGB color
-  private cgbColor(paletteRam: Uint8Array, palette: number, colorId: number): [number, number, number, number] {
+  private cgbColor(
+    paletteRam: Uint8Array,
+    palette: number,
+    colorId: number
+  ): [number, number, number, number] {
     const idx = palette * 8 + colorId * 2;
     const lo = paletteRam[idx]!;
     const hi = paletteRam[idx + 1]!;
@@ -508,11 +507,9 @@ export class Ppu {
         const mapAddr = mapBase + tileRow * 32 + tileCol;
         const tile = vram0[mapAddr - 0x8000]!;
         attr = vram1[mapAddr - 0x8000]!;
-        const bank = (attr & 0x08) ? 1 : 0;
+        const bank = attr & 0x08 ? 1 : 0;
         pal = attr & 7;
-        const tileAddr = signed
-          ? 0x9000 + ((tile << 24) >> 24) * 16
-          : 0x8000 + tile * 16;
+        const tileAddr = signed ? 0x9000 + ((tile << 24) >> 24) * 16 : 0x8000 + tile * 16;
         let line = y & 7;
         if (attr & 0x40) line = 7 - line;
         lo = this.bus.vram[bank]![tileAddr - 0x8000 + line * 2]!;
@@ -521,8 +518,8 @@ export class Ppu {
       }
       let bit = px & 7;
       if (!flipX) bit = 7 - bit;
-      const colorId = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
-      this.bgLineColors[x] = colorId | ((attr & 0x80) ? 0x80 : 0) | (bgPriority ? 0x40 : 0);
+      const colorId = (((hi >> bit) & 1) << 1) | ((lo >> bit) & 1);
+      this.bgLineColors[x] = colorId | (attr & 0x80 ? 0x80 : 0) | (bgPriority ? 0x40 : 0);
       this.putPixel(x, this.cgbColor(this.bus.bgPalette, pal, colorId));
     }
 
@@ -543,11 +540,9 @@ export class Ppu {
           const mapAddr = wMap + wRow * 32 + tileCol;
           const tile = vram0[mapAddr - 0x8000]!;
           attr = vram1[mapAddr - 0x8000]!;
-          const bank = (attr & 0x08) ? 1 : 0;
+          const bank = attr & 0x08 ? 1 : 0;
           pal = attr & 7;
-          const tileAddr = signed
-            ? 0x9000 + ((tile << 24) >> 24) * 16
-            : 0x8000 + tile * 16;
+          const tileAddr = signed ? 0x9000 + ((tile << 24) >> 24) * 16 : 0x8000 + tile * 16;
           let line = wy & 7;
           if (attr & 0x40) line = 7 - line;
           lo = this.bus.vram[bank]![tileAddr - 0x8000 + line * 2]!;
@@ -556,8 +551,8 @@ export class Ppu {
         }
         let bit = px & 7;
         if (!flipX) bit = 7 - bit;
-        const colorId = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
-        this.bgLineColors[x] = colorId | ((attr & 0x80) ? 0x80 : 0) | 0x40;
+        const colorId = (((hi >> bit) & 1) << 1) | ((lo >> bit) & 1);
+        this.bgLineColors[x] = colorId | (attr & 0x80 ? 0x80 : 0) | 0x40;
         this.putPixel(x, this.cgbColor(this.bus.bgPalette, pal, colorId));
       }
       if (drew) this.windowLine++;
@@ -598,14 +593,14 @@ export class Ppu {
         tile |= half;
       }
       const tileInsideY = flipY ? 7 - (insideY & 7) : insideY & 7;
-      const bank = (sp.attr & 0x08) ? 1 : 0;
+      const bank = sp.attr & 0x08 ? 1 : 0;
       const pal = sp.attr & 7;
       const tileAddr = tile * 16 + tileInsideY * 2;
       const lo = this.bus.vram[bank]![tileAddr]!;
       const hi = this.bus.vram[bank]![tileAddr + 1]!;
       for (let px = 0; px < 8; px++) {
         const bit = sp.attr & 0x20 ? px : 7 - px;
-        const colorId = ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1);
+        const colorId = (((hi >> bit) & 1) << 1) | ((lo >> bit) & 1);
         if (colorId === 0) continue;
         const x = sp.x + px;
         if (x < 0 || x >= SCREEN_WIDTH || claimed[x]) continue;
@@ -613,11 +608,7 @@ export class Ppu {
         const bg = this.bgLineColors[x]!;
         const bgColor = bg & 3;
         const bgPri = (bg & 0x80) !== 0;
-        if (
-          !prioritizeSprites &&
-          bgColor !== 0 &&
-          ((sp.attr & 0x80) !== 0 || bgPri)
-        ) {
+        if (!prioritizeSprites && bgColor !== 0 && ((sp.attr & 0x80) !== 0 || bgPri)) {
           continue;
         }
         this.putPixel(x, this.cgbColor(this.bus.objPalette, pal, colorId));
